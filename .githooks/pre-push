@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# HiveCell pre-push hook: block a push if the safety self-tests fail.
+# Enabled via:  git config core.hooksPath .githooks
+set -euo pipefail
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+echo "pre-push: running HiveCell safety self-tests..."
+if ! "$REPO_ROOT/scripts/run_selftest.sh"; then
+  echo "pre-push: BLOCKED -- safety self-tests failed. Push aborted." >&2
+  exit 1
+fi
+echo "pre-push: safety self-tests passed."

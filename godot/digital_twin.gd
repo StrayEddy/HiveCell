@@ -1,15 +1,29 @@
 extends Node3D
 ## HiveCell digital twin.
 ## Loads the FreeCAD-exported parts (meters, Y-up) and animates the syringe
-## retraction: the piston is the ONLY moving part, sliding -X by `stroke`.
+## motion: the piston is the ONLY moving part, sliding -X by `stroke`.
 ## Dimensions/timing come from models/hivecell.json (kept in sync by
 ## scripts/export_godot.py), so nothing here is a hardcoded magic number.
+##
+## SAFETY MODEL (see docs/SAFETY.md):
+## The piston exists to clear INANIMATE items (e.g. a bag left behind) from an
+## EMPTY pod. It must never move against a living thing. So the clearing sweep is
+## gated behind a life-detection interlock: the mechanism has to positively prove
+## "no life inside" before it may move, and a force/safety-edge backstop reverses
+## it if life is detected mid-motion. Removal is restricted to things that
+## cannot be hurt; a person or animal present => hold still + alert a human.
 
 const MODELS := "res://models/"
 
-@export var demo_seconds := 8.0   ## compress the ~10 min retraction to this many seconds
+@export var demo_seconds := 8.0   ## compress the ~10 min sweep to this many seconds
 @export var hold_seconds := 2.0   ## pause at each end of travel
 @export var paused := false        ## Space toggles this at runtime
+
+## --- Interlock simulation knobs (drive the simulated sensors so you can test) ---
+@export var occupant_alive := false  ## SIM: a living person/animal is inside right now
+@export var bag_present := true      ## SIM: an inanimate item was left behind
+@export var sensor_fault := false    ## SIM: inject a sensor fault (must fail safe -> no motion)
+@export var life_check_seconds := 1.5  ## dwell: all channels must read "no life" this long
 
 var stroke := 2.2                  ## meters, overwritten from manifest
 var retract_real := 600.0          ## real-world seconds, from manifest
@@ -22,16 +36,22 @@ var chain_h := 0.06                ## meters (Z)
 var piston: MeshInstance3D
 var column: MeshInstance3D          ## rigid-chain exposed column (procedural)
 var column_mesh: BoxMesh
+var bag: MeshInstance3D             ## the inanimate item to be cleared (procedural)
 var label: Label
 
-enum State { DEPLOYED, RETRACTING, CLOSED, EXTENDING }
-var state: int = State.DEPLOYED
-var t := 0.0                       ## time in current state
-var progress := 0.0                ## 0 = deployed (available), 1 = closed (flush)
+## The clearing cycle + life-detection live in a pure, headless-testable class
+## (safety_interlock.gd). This twin just drives its inputs and renders its state,
+## so the twin and the self-test exercise the SAME safety logic.
+var il := SafetyInterlock.new()
+var progress := 0.0                ## mirrored from the interlock for rendering
 
 
 func _ready() -> void:
 	_load_manifest()
+	il.demo_seconds = demo_seconds
+	il.hold_seconds = hold_seconds
+	il.life_check_seconds = life_check_seconds
+	il.bag_present = bag_present   # interlock owns bag state once running (it clears it)
 	_build_scene()
 
 
@@ -85,6 +105,18 @@ func _build_scene() -> void:
 	column.material_override = _metal(Color(0.55, 0.57, 0.60), 1.0)
 	add_child(column)
 
+	# The left-behind bag: a small soft item that rides out ahead of the piston
+	# face during a clearing sweep. Purely a demo prop for the inanimate case.
+	var bag_mesh := BoxMesh.new()
+	bag_mesh.size = Vector3(0.35, 0.30, 0.30)
+	bag = MeshInstance3D.new()
+	bag.mesh = bag_mesh
+	var bag_mat := StandardMaterial3D.new()
+	bag_mat.albedo_color = Color(0.55, 0.40, 0.20)
+	bag_mat.roughness = 0.9
+	bag.material_override = bag_mat
+	add_child(bag)
+
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -35, 0)
 	sun.light_energy = 1.2
@@ -123,27 +155,16 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if not paused:
-		t += delta
-		match state:
-			State.DEPLOYED:
-				progress = 0.0
-				if t >= hold_seconds:
-					_goto(State.RETRACTING)
-			State.RETRACTING:
-				progress = clampf(t / demo_seconds, 0.0, 1.0)
-				if progress >= 1.0:
-					_goto(State.CLOSED)
-			State.CLOSED:
-				progress = 1.0
-				if t >= hold_seconds:
-					_goto(State.EXTENDING)
-			State.EXTENDING:
-				progress = clampf(1.0 - t / demo_seconds, 0.0, 1.0)
-				if progress <= 0.0:
-					_goto(State.DEPLOYED)
+		# Feed the live simulation knobs into the interlock, then step it.
+		il.occupant_alive = occupant_alive
+		il.sensor_fault = sensor_fault
+		il.step(delta)
+		progress = il.progress
+		bag_present = il.bag_present
 
 	piston.position.x = -progress * stroke
 	_update_chain()
+	_update_bag()
 	_update_label()
 
 
@@ -156,19 +177,26 @@ func _update_chain() -> void:
 	column.position = Vector3((piston_rear + magazine_front) * 0.5, 0.0, 0.0)
 
 
-func _goto(s: int) -> void:
-	state = s
-	t = 0.0
+func _update_bag() -> void:
+	# The bag rides just ahead of the piston face while it is being swept out, and
+	# vanishes once cleared. Only shown for the inanimate-clearing demo.
+	bag.visible = bag_present
+	if bag_present:
+		bag.position = Vector3(piston.position.x + 0.4, 0.0, 0.0)
 
 
 func _update_label() -> void:
 	var names := {
-		State.DEPLOYED: "AVAILABLE (deployed)",
-		State.RETRACTING: "RETRACTING",
-		State.CLOSED: "CLOSED (flush)",
-		State.EXTENDING: "DEPLOYING",
+		SafetyInterlock.State.AVAILABLE: "AVAILABLE (in use / deployed)",
+		SafetyInterlock.State.LIFE_CHECK: "LIFE CHECK (must prove empty)",
+		SafetyInterlock.State.CLEARING: "CLEARING inanimate item",
+		SafetyInterlock.State.CLEARED_HOLD: "CLEARED (flush)",
+		SafetyInterlock.State.REDEPLOY: "REDEPLOYING",
+		SafetyInterlock.State.BLOCKED_OCCUPIED: "BLOCKED: life detected -> alert human",
 	}
+	var verdict := ("OCCUPIED" if il.life_present() else "clear")
 	var real_elapsed := int(round(progress * retract_real))
-	label.text = "HiveCell digital twin   [Space] pause\nState: %s\nRetraction: %d%%   (~%ds of %ds real)\nPiston X: %+.2f m" % [
-		names[state], int(round(progress * 100.0)), real_elapsed, int(retract_real), piston.position.x
+	label.text = "HiveCell digital twin   [Space] pause\nState: %s\nInterlock: %s   (fault=%s, bag=%s)\nSweep: %d%%   (~%ds of %ds real)\nPiston X: %+.2f m" % [
+		names[il.state], verdict, str(sensor_fault), str(bag_present),
+		int(round(progress * 100.0)), real_elapsed, int(retract_real), piston.position.x
 	]
