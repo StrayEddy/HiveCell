@@ -1,0 +1,10 @@
+{
+  "stroke_m": 2.2,
+  "barrel_length_m": 2.5,
+  "retract_seconds_real": 600,
+  "moving_part": "Piston",
+  "parts": [
+    "CapsuleShell",
+    "Piston"
+  ]
+}

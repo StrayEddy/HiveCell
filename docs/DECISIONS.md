@@ -123,6 +123,26 @@ grooves are later milestones. `pistonLength` and `runningClearance` are tunable.
 
 ---
 
+## ADR-0006 — CAD -> Godot export conventions
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision.** `scripts/export_godot.py` writes one OBJ per part to `godot/models/`
+plus `hivecell.json` (stroke, timings). Every mesh is baked to Godot space at export:
+scale x0.001 (mm->m) and rotate -90 deg about X (FreeCAD Z-up -> Godot Y-up), i.e.
+(x,y,z) -> (x, z, -y). The +X motion axis is preserved, so retraction is a single
+-X translation of the Piston node. Godot digital twin lives in `godot/` (Godot 4).
+
+**Why.** Baking units + axis at export means Godot needs no per-import fiddling and
+parts keep correct relative positions. One mesh per part keeps the piston an
+independent, animatable node. The JSON manifest keeps the twin in sync with the
+parametric model instead of hardcoding dimensions.
+
+**Rule.** Any new part added to the model must be added to `PARTS` in export_godot.py
+and (if it moves) wired in the Godot scene.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface

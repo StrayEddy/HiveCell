@@ -1,0 +1,52 @@
+"""Export HiveCell parts as Godot-ready meshes (meters, Y-up) + a manifest.
+
+Run headless:
+  flatpak run --command=freecadcmd org.freecad.FreeCAD \
+      /home/eddy/Projects/HiveCell/scripts/export_godot.py
+
+Writes godot/models/<Part>.obj (one file per part, so the piston stays a
+separate animatable node) and godot/models/hivecell.json (dims + timing for
+the digital-twin script). FreeCAD is mm + Z-up; Godot is meters + Y-up, so each
+mesh is scaled 0.001 and rotated -90 deg about X: (x,y,z)_mm -> (x, z, -y)_m.
+The +X motion axis is preserved, so retraction is a single -X translation.
+"""
+import json
+import math
+import os
+import FreeCAD as App
+import MeshPart
+
+DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
+OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
+PARTS = ["CapsuleShell", "Piston"]
+
+os.makedirs(OUTDIR, exist_ok=True)
+doc = App.open(DOC)
+
+# mm -> m and Z-up -> Y-up in one matrix (uniform scale commutes with rotation).
+xform = App.Matrix()
+xform.rotateX(math.radians(-90))       # (x, y, z) -> (x, z, -y)
+xform.scale(0.001, 0.001, 0.001)
+
+for name in PARTS:
+    shape = doc.getObject(name).Shape
+    mesh = MeshPart.meshFromShape(Shape=shape, LinearDeflection=1.0,
+                                  AngularDeflection=0.35, Relative=False)
+    mesh.transform(xform)
+    path = os.path.join(OUTDIR, name + ".obj")
+    mesh.write(path)
+    print(f"exported {name}: {mesh.CountFacets} facets -> {path}")
+
+sheet = next(o for o in doc.Objects if o.TypeId == "Spreadsheet::Sheet")
+manifest = {
+    "stroke_m": round(sheet.stroke.Value / 1000.0, 4),
+    "barrel_length_m": round(sheet.barrelLength.Value / 1000.0, 4),
+    "retract_seconds_real": 600,     # ~10 min real-world retraction
+    "moving_part": "Piston",
+    "parts": PARTS,
+}
+with open(os.path.join(OUTDIR, "hivecell.json"), "w") as f:
+    json.dump(manifest, f, indent=2)
+print("manifest:", manifest)
+
+App.closeDocument(doc.Name)

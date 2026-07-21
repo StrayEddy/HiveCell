@@ -1,0 +1,14 @@
+; HiveCell digital twin — Godot 4 project
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="HiveCell Digital Twin"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
