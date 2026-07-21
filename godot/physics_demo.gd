@@ -14,6 +14,9 @@ extends Node3D
 ## shell mesh AABB, so this stays in sync if the CAD changes and is re-exported.
 
 const MODELS := "res://models/"
+const SAFE_CONTACT_N := 120.0   ## SF2 hard force cap: below the ~150 N powered-door
+                                ## limit, with margin for vulnerable occupants. Tunable.
+const PERSON_HALF_X := 0.72     ## half-length of the lying person along X (capsule)
 
 var il := SafetyInterlock.new()
 
@@ -36,11 +39,14 @@ var scenarios := [
 	{"title": "3 · LOTS OF STUFF — no one inside",        "things": 10, "person": false, "intrude": false},
 	{"title": "4 · SOMEONE INSIDE — motion LOCKED",       "things": 0,  "person": true,  "intrude": false},
 	{"title": "5 · INTRUSION MID-SWEEP — stop & reverse", "things": 2,  "person": false, "intrude": true},
+	{"title": "6 · SENSOR BLIND — safety edge catches",   "things": 0,  "person": true,  "intrude": false, "sf1_blind": true},
 ]
 var scn := -1
 var scn_time := 0.0
 var saw_motion := false
 var intruded := false
+var sf2_tripped := false
+var drive_load := 0.0   ## current estimated contact force (N), shown on the HUD
 
 
 func _ready() -> void:
@@ -225,6 +231,7 @@ func _start_scenario(i: int) -> void:
 	scn_time = 0.0
 	saw_motion = false
 	intruded = false
+	sf2_tripped = false
 	_clear_scene_contents()
 
 	# Fresh interlock so each scenario starts deployed and empty of state.
@@ -234,7 +241,9 @@ func _start_scenario(i: int) -> void:
 	il.life_check_seconds = 0.6
 
 	var s = scenarios[i]
-	il.occupant_alive = s["person"]
+	# SF1 sees a living occupant -- UNLESS this scenario simulates a blind/failed
+	# sensor, in which case SF2 (contact force) is the only thing left to catch it.
+	il.occupant_alive = s["person"] and not s.get("sf1_blind", false)
 	print("[scenario] ", s["title"])
 
 	var n: int = s["things"]
@@ -261,8 +270,36 @@ func _place_piston() -> void:
 	piston.position = Vector3(-il.progress * stroke, 0.0, 0.0)
 
 
+func _piston_face_x() -> float:
+	# Front face of the piston plug (its natural front is at x = stroke).
+	return stroke - il.progress * stroke
+
+
+## Estimate the contact force the drive is meeting (N). The key discriminator is
+## YIELD, not magnitude: movable trash slides away so its resistance stays low and
+## bounded; a NON-YIELDING body (a braced limb) makes force climb steeply with
+## penetration, which is the crush SF2 must catch.
+func _drive_load() -> float:
+	var face_x := _piston_face_x()
+	var load := 6.0   # baseline drive + seal drag
+	for n in spawned:
+		if n is RigidBody3D and is_instance_valid(n):
+			var dx: float = n.position.x - face_x   # item ahead of the face is < 0
+			if dx > -0.30 and dx < 0.04 and absf(n.position.z) < half_w + 0.15:
+				load += 9.0 * n.mass                # movable trash: modest, bounded
+	# A non-yielding occupant/limb: force rises fast as the face presses into it.
+	if person != null and is_instance_valid(person):
+		var pen: float = (person.position.x + PERSON_HALF_X) - face_x
+		if pen > 0.0:
+			load += 2200.0 * pen                    # steep -> exceeds the safe cap
+	return load
+
+
 func _scenario_done() -> bool:
 	var s = scenarios[scn]
+	if s.get("sf1_blind", false):
+		# SF2 must have fired and reversed the sweep back out.
+		return sf2_tripped and il.progress <= 0.05 and scn_time > 1.0
 	if s["person"]:
 		return il.state == SafetyInterlock.State.BLOCKED_OCCUPIED and scn_time > 3.5
 	if s["intrude"]:
@@ -279,6 +316,13 @@ func _physics_process(delta: float) -> void:
 		il.occupant_alive = true
 		intruded = true
 		_spawn_person(Vector3(mouth_x + 0.35, floor_y + 0.28, 0.0))
+
+	# SF2: estimate the contact force the drive is meeting and set the independent
+	# over-limit trip (separate from SF1 life-detection).
+	drive_load = _drive_load()
+	il.contact_over_limit = drive_load > SAFE_CONTACT_N
+	if il.contact_over_limit:
+		sf2_tripped = true
 
 	il.step(delta)
 	if il.state == SafetyInterlock.State.CLEARING or il.state == SafetyInterlock.State.REDEPLOY:
@@ -300,8 +344,12 @@ func _update_hud() -> void:
 		SafetyInterlock.State.BLOCKED_OCCUPIED: "BLOCKED — life detected, alert human",
 	}
 	var life := il.life_present()
+	var over := il.contact_over_limit
 	title_label.text = str(scenarios[scn]["title"])
-	title_label.add_theme_color_override("font_color", Color(1, 0.5, 0.45) if life else Color(0.6, 1, 0.7))
-	status_label.text = "Interlock: %s\nLife: %s    Sweep: %d%%" % [
-		names[il.state], ("DETECTED" if life else "clear"), int(round(il.progress * 100.0))
+	title_label.add_theme_color_override("font_color",
+		Color(1, 0.5, 0.45) if (life or over) else Color(0.6, 1, 0.7))
+	var force_note := "  !! OVER LIMIT -> STOP & REVERSE" if over else ""
+	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s" % [
+		names[il.state], ("DETECTED" if life else "clear"), int(round(il.progress * 100.0)),
+		int(round(drive_load)), int(SAFE_CONTACT_N), force_note
 	]

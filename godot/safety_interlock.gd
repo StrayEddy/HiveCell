@@ -21,6 +21,9 @@ var life_check_seconds := 1.5
 var occupant_alive := false   ## a living person/animal is inside right now
 var sensor_fault := false     ## a faulted/unknown sensor (must fail safe)
 var bag_present := true        ## an inanimate item left behind (owned here once running)
+var contact_over_limit := false  ## SF2: measured contact force exceeded the safe
+                                 ## limit (a non-yielding obstruction / crush). An
+                                 ## independent trip from SF1 life-detection.
 
 # --- state ---
 var state: int = State.AVAILABLE
@@ -55,17 +58,21 @@ func step(delta: float) -> void:
 				clear_dwell = 0.0
 				_goto(State.LIFE_CHECK)
 		State.LIFE_CHECK:
-			# Must read "no life" continuously for the whole dwell to unlock.
+			# Must read "no life" continuously for the whole dwell to unlock -- and
+			# never start a sweep while the safety edge (SF2) is already tripped.
 			if life_present():
 				_goto(State.BLOCKED_OCCUPIED)
+			elif contact_over_limit:
+				clear_dwell = 0.0   # safety edge active: hold, don't begin moving
 			else:
 				clear_dwell += delta
 				if clear_dwell >= life_check_seconds:
 					_goto(State.CLEARING)
 		State.CLEARING:
-			# SF2 backstop: life detected mid-sweep -> STOP and REVERSE. Reverse
-			# from the CURRENT position, never snap forward first.
-			if life_present():
+			# Two independent trips STOP and REVERSE mid-sweep, reversing from the
+			# CURRENT position (never snap forward first):
+			#   SF1 - life detected;  SF2 - contact force over the safe limit.
+			if life_present() or contact_over_limit:
 				reverse_from = progress
 				_goto(State.REDEPLOY)
 			else:

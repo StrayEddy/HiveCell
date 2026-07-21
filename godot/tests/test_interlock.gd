@@ -30,14 +30,16 @@ func _check(cond: bool, msg: String) -> void:
 ## the machine must not be in the advancing (CLEARING) state.
 func _run(il, n: int, tag: String) -> void:
 	for i in n:
-		var life_before: bool = il.life_present()
+		# Either safety trip -- SF1 life, or SF2 contact-over-limit -- must prevent
+		# the sweep from advancing into the pod.
+		var block_before: bool = il.life_present() or il.contact_over_limit
 		var p_before: float = il.progress
 		il.step(DT)
-		if life_before:
+		if block_before:
 			_check(il.progress <= p_before + 1e-6,
-				"%s: sweep ADVANCED while life present (%.4f -> %.4f)" % [tag, p_before, il.progress])
+				"%s: sweep ADVANCED while a safety trip was active (%.4f -> %.4f)" % [tag, p_before, il.progress])
 			_check(not il.advancing(),
-				"%s: entered CLEARING while life present" % tag)
+				"%s: entered CLEARING while a safety trip was active" % tag)
 
 
 func _new_il(demo := 1.0, hold := 0.2, dwell := 0.3):
@@ -99,8 +101,26 @@ func _initialize() -> void:
 	_check(il4.state == Interlock.State.BLOCKED_OCCUPIED,
 		"S4: fault did not block motion (state=%d)" % il4.state)
 
+	# Scenario 5 -- SF1 BLIND, SF2 catches: life-detection misses the occupant
+	# (occupant_alive stays false), but a contact-over-limit trip mid-sweep must
+	# still stop and reverse. Proves SF2 is independent of SF1.
+	var il5 = _new_il()
+	il5.occupant_alive = false
+	il5.bag_present = true
+	while il5.state != Interlock.State.CLEARING or il5.progress < 0.3:
+		il5.step(DT)
+		if il5.progress >= 0.99:
+			break
+	_check(il5.state == Interlock.State.CLEARING and il5.progress >= 0.3,
+		"S5: could not reach a mid-sweep state to test")
+	var peak5: float = il5.progress
+	il5.contact_over_limit = true          # safety edge fires; SF1 still says clear
+	_run(il5, 300, "S5 SF2 contact trip")  # _run enforces "never advances while tripped"
+	_check(il5.progress < peak5 + 1e-6, "S5: advanced past peak after SF2 trip")
+	_check(il5.progress <= 0.001, "S5: did not reverse out after SF2 trip")
+
 	if failures == 0:
-		print("PASS: all interlock scenarios held (sweep never advanced against life).")
+		print("PASS: all interlock scenarios held (sweep never advanced against a safety trip).")
 		quit(0)
 	else:
 		print("FAILED: %d assertion(s)." % failures)
