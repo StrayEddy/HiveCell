@@ -38,6 +38,7 @@ PARAMS = [
     ("floorWidth",      "=cavityWidth - 2 * cornerRadius", "flat floor width (derived); > shoulderP95"),
     ("wallThickness",   "6 mm",                          "STRUCTURAL PLACEHOLDER - TBD by analysis"),
     ("stroke",          "=cavityLength",                 "piston travel, deployed -> flush (derived)"),
+    ("barrelLength",    "=cavityLength",                 "fixed sleeve length; TBD extend by piston+service (M4)"),
 ]
 
 
@@ -117,28 +118,69 @@ def build_cavity_reference(doc, sheet):
     return body, fillet
 
 
+def rounded_box_shape(width, height, length, radius, x0=0.0):
+    """A solid rounded-rectangular prism: box centered on the X axis in Y/Z,
+    spanning x0..x0+length, with the 4 edges along X filleted to `radius`."""
+    box = Part.makeBox(length, width, height, App.Vector(x0, -width / 2.0, -height / 2.0))
+    long_edges = []
+    for e in box.Edges:
+        vs = e.Vertexes
+        if len(vs) == 2:
+            d = vs[1].Point.sub(vs[0].Point)
+            if abs(d.x) > 1e-6 and abs(d.y) < 1e-6 and abs(d.z) < 1e-6:
+                long_edges.append(e)
+    if radius > 0 and long_edges:
+        return box.makeFillet(radius, long_edges)
+    return box
+
+
+def build_capsule_shell(doc, sheet):
+    """CapsuleShell: the fixed barrel the occupant lies in and the piston slides
+    through -- a rounded-rectangular sleeve of uniform wallThickness, open at
+    BOTH ends (front = public opening / piston seal; back = service side). The
+    flat back wall the occupant sees is the piston (a later part), not this shell."""
+    w = sheet.cavityWidth.Value
+    h = sheet.interiorHeight.Value
+    r = sheet.cornerRadius.Value
+    t = sheet.wallThickness.Value
+    L = sheet.barrelLength.Value
+
+    # Inner surface == the keep-out envelope. Shell OUTWARD by t so we never
+    # steal from the sleeper's space; outer corner R = inner R + t (uniform wall).
+    outer = rounded_box_shape(w + 2 * t, h + 2 * t, L, r + t, x0=0.0)
+    inner = rounded_box_shape(w, h, L + 2.0, r, x0=-1.0)  # overhang => clean through-cut
+    shell = doc.addObject("Part::Feature", "CapsuleShell")
+    shell.Shape = outer.cut(inner)
+    doc.recompute()
+    return shell
+
+
 def main():
     if App.ActiveDocument and App.ActiveDocument.Name == "HiveCell":
         App.closeDocument("HiveCell")
     doc = App.newDocument("HiveCell")
 
     sheet = build_parameters(doc)
-    _body, tip = build_cavity_reference(doc, sheet)
+    ref_body, _tip = build_cavity_reference(doc, sheet)
+    shell = build_capsule_shell(doc, sheet)
+    ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
     doc.saveAs(OUT)
 
-    bb = tip.Shape.BoundBox
-    floor = sheet.floorWidth.Value
-    shoulder = sheet.shoulderP95.Value
-    n_fillets = len(tip.Base[1]) if tip.Base else 0
+    t = sheet.wallThickness.Value
+    L = sheet.barrelLength.Value
+    bb = shell.Shape.BoundBox
+    axis_pt = App.Vector(L / 2.0, 0, 0)                                        # in the void
+    wall_pt = App.Vector(L / 2.0, sheet.cavityWidth.Value / 2.0 + t / 2.0, 0)  # in the wall
     print("--- build_model.py OK ---")
     print(f"saved: {OUT}")
-    print(f"Capsule bbox (mm):  X={bb.XLength:.0f}  Y={bb.YLength:.0f}  Z={bb.ZLength:.0f}")
-    print(f"expected:           X=2200  Y=1000  Z=1100")
-    print(f"rounded long edges: {n_fillets} (expected 4)")
-    print(f"flat floor width:   {floor:.0f} mm  vs shoulderP95 {shoulder:.0f} mm  "
-          f"-> {'OK' if floor > shoulder else 'TOO NARROW'}")
+    print(f"CapsuleShell bbox (mm): X={bb.XLength:.0f}  Y={bb.YLength:.0f}  Z={bb.ZLength:.0f}")
+    print(f"expected (inner+2t):    X={L:.0f}  Y={sheet.cavityWidth.Value + 2 * t:.0f}  "
+          f"Z={sheet.interiorHeight.Value + 2 * t:.0f}")
+    print(f"solids: {len(shell.Shape.Solids)}  valid: {shell.Shape.isValid()}")
+    print(f"hollow check: centre-in-void={shell.Shape.isInside(axis_pt, 0.01, True)} "
+          f"(want False)  point-in-wall={shell.Shape.isInside(wall_pt, 0.01, True)} (want True)")
 
 
 main()

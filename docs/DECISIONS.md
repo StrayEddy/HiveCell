@@ -81,6 +81,27 @@ is now derived and checked to exceed `shoulderP95`.
 
 ---
 
+## ADR-0004 — Capsule shell = fixed barrel, an open-ended sleeve
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision.** The `CapsuleShell` is the fixed barrel: a rounded-rectangular sleeve
+of uniform `wallThickness`, shelled OUTWARD from the keep-out envelope (inner surface
+= envelope; outer corner R = inner R + t). It is open at BOTH ends -- front (X=0) =
+public opening / piston seal plane; back (deep) = service side. The flat back wall the
+occupant perceives is the PISTON (a separate part, next milestone), not the shell.
+
+**Why.** Shelling outward keeps the human envelope sacred. An open-ended sleeve is the
+true syringe barrel and keeps each part independently manufacturable. Uniform wall
+(concentric corners) eases fabrication and stress. Built as a boolean cut of two
+rounded boxes and baked as a Part::Feature (Python is the source of truth, ADR-0002).
+
+**Placeholders.** `wallThickness` 6 mm is structural TBD (vandal/load analysis).
+`barrelLength` = `cavityLength` for now; must extend deeper to house the retracted
+piston + actuator once the piston is sized (M4).
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
