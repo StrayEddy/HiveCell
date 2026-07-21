@@ -18,7 +18,7 @@ import MeshPart
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
-PARTS = ["CapsuleShell", "Piston"]
+PARTS = ["CapsuleShell", "Piston", "ActuatorHousing"]  # ActuatorRod is drawn procedurally in the twin
 
 os.makedirs(OUTDIR, exist_ok=True)
 doc = App.open(DOC)
@@ -38,9 +38,15 @@ for name in PARTS:
     print(f"exported {name}: {mesh.CountFacets} facets -> {path}")
 
 sheet = next(o for o in doc.Objects if o.TypeId == "Spreadsheet::Sheet")
+install_depth_mm = (sheet.barrelLength.Value + sheet.actuatorGap.Value
+                    + sheet.actuatorBodyLength.Value)
 manifest = {
     "stroke_m": round(sheet.stroke.Value / 1000.0, 4),
     "barrel_length_m": round(sheet.barrelLength.Value / 1000.0, 4),
+    "install_depth_m": round(install_depth_mm / 1000.0, 4),
+    "piston_rear_deployed_m": round(sheet.barrelLength.Value / 1000.0, 4),
+    "actuator_housing_front_m": round((sheet.barrelLength.Value + sheet.actuatorGap.Value) / 1000.0, 4),
+    "actuator_rod_dia_m": round(sheet.actuatorRodDia.Value / 1000.0, 4),
     "retract_seconds_real": 600,     # ~10 min real-world retraction
     "moving_part": "Piston",
     "parts": PARTS,

@@ -41,6 +41,10 @@ PARAMS = [
     ("runningClearance","3 mm",                          "piston-to-bore gap per side (seals bridge it)"),
     ("pistonLength",    "300 mm",                        "piston depth along X"),
     ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
+    ("actuatorRodDia",  "70 mm",                         "drive rod / screw diameter (representative)"),
+    ("actuatorBodyDia", "160 mm",                        "actuator motor+screw housing diameter (representative)"),
+    ("actuatorBodyLength", "700 mm",                     "actuator housing length"),
+    ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to housing front"),
 ]
 
 
@@ -176,6 +180,28 @@ def build_piston(doc, sheet):
     return piston
 
 
+def build_actuator(doc, sheet):
+    """Electric linear actuator (representative): a central rod + motor/screw
+    housing behind the piston, in the service area. The rod translates -X to
+    close and +X to deploy; the non-circular bore stops the piston rotating and
+    provides front guidance (no external rails -- they'd need a slot through the
+    sealed bore). Modeled at the DEPLOYED pose (rod short). Unit selection follows
+    scripts/actuator_sizing.py (design force ~1.2 kN)."""
+    bl = sheet.barrelLength.Value
+    gap = sheet.actuatorGap.Value
+    rod_r = sheet.actuatorRodDia.Value / 2.0
+    body_r = sheet.actuatorBodyDia.Value / 2.0
+    body_l = sheet.actuatorBodyLength.Value
+    X = App.Vector(1, 0, 0)
+
+    rod = doc.addObject("Part::Feature", "ActuatorRod")
+    rod.Shape = Part.makeCylinder(rod_r, gap, App.Vector(bl, 0, 0), X)
+    housing = doc.addObject("Part::Feature", "ActuatorHousing")
+    housing.Shape = Part.makeCylinder(body_r, body_l, App.Vector(bl + gap, 0, 0), X)
+    doc.recompute()
+    return rod, housing
+
+
 def main():
     if App.ActiveDocument and App.ActiveDocument.Name == "HiveCell":
         App.closeDocument("HiveCell")
@@ -185,6 +211,7 @@ def main():
     ref_body, _tip = build_cavity_reference(doc, sheet)
     shell = build_capsule_shell(doc, sheet)
     piston = build_piston(doc, sheet)
+    build_actuator(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
@@ -213,6 +240,12 @@ def main():
     print(f"deployed front face X={pbb.XMin:.0f} (want {sheet.cavityLength.Value:.0f})  "
           f"back X={pbb.XMax:.0f} (want barrelLength {L:.0f})")
     print(f"piston<->wall overlap volume={overlap:.1f} mm^3 (want ~0: {c:.0f} mm clearance)")
+
+    install_depth = (sheet.barrelLength.Value + sheet.actuatorGap.Value
+                     + sheet.actuatorBodyLength.Value)
+    print(f"Actuator: rod {sheet.actuatorRodDia.Value:.0f}dia, "
+          f"housing {sheet.actuatorBodyDia.Value:.0f}dia x {sheet.actuatorBodyLength.Value:.0f}")
+    print(f"Total install depth behind wall: {install_depth:.0f} mm ({install_depth / 1000:.2f} m)")
 
 
 main()

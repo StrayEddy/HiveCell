@@ -13,8 +13,14 @@ const MODELS := "res://models/"
 
 var stroke := 2.2                  ## meters, overwritten from manifest
 var retract_real := 600.0          ## real-world seconds, from manifest
+var install_depth := 3.26          ## meters, full depth behind wall
+var piston_rear_deployed := 2.5    ## meters, piston rear X when deployed
+var housing_front := 2.56          ## meters, fixed actuator housing front X
+var rod_dia := 0.07                ## meters
 
 var piston: MeshInstance3D
+var rod: MeshInstance3D
+var rod_mesh: CylinderMesh
 var label: Label
 
 enum State { DEPLOYED, RETRACTING, CLOSED, EXTENDING }
@@ -37,6 +43,10 @@ func _load_manifest() -> void:
 	if data is Dictionary:
 		stroke = float(data.get("stroke_m", stroke))
 		retract_real = float(data.get("retract_seconds_real", retract_real))
+		install_depth = float(data.get("install_depth_m", install_depth))
+		piston_rear_deployed = float(data.get("piston_rear_deployed_m", piston_rear_deployed))
+		housing_front = float(data.get("actuator_housing_front_m", housing_front))
+		rod_dia = float(data.get("actuator_rod_dia_m", rod_dia))
 
 
 func _metal(color: Color, alpha := 1.0) -> StandardMaterial3D:
@@ -62,6 +72,19 @@ func _build_scene() -> void:
 	# Barrel semi-transparent so you can watch the piston inside; piston solid.
 	_add_part("CapsuleShell", _metal(Color(0.70, 0.75, 0.80), 0.22))
 	piston = _add_part("Piston", _metal(Color(0.85, 0.87, 0.90), 1.0))
+	_add_part("ActuatorHousing", _metal(Color(0.30, 0.32, 0.36), 1.0))  # fixed drive housing
+
+	# Procedural rod: a cylinder stretched each frame between the piston rear
+	# (moving) and the housing front (fixed) -- the actuator extending/retracting.
+	rod_mesh = CylinderMesh.new()
+	rod_mesh.top_radius = rod_dia * 0.5
+	rod_mesh.bottom_radius = rod_dia * 0.5
+	rod_mesh.height = housing_front - piston_rear_deployed
+	rod = MeshInstance3D.new()
+	rod.mesh = rod_mesh
+	rod.material_override = _metal(Color(0.60, 0.62, 0.66), 1.0)
+	rod.rotation_degrees = Vector3(0, 0, 90)  # cylinder axis Y -> world X
+	add_child(rod)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -35, 0)
@@ -78,9 +101,10 @@ func _build_scene() -> void:
 	world.environment = env
 	add_child(world)
 
-	var center := Vector3(1.25, 0.0, 0.0)   # middle of the 2.5 m assembly
+	var mid := install_depth * 0.5          # middle of the full assembly
+	var center := Vector3(mid, 0.0, 0.0)
 	var cam := Camera3D.new()
-	cam.position = Vector3(1.25, 1.35, 3.4)
+	cam.position = Vector3(mid, 1.7, 4.6)
 	add_child(cam)
 	cam.look_at(center, Vector3.UP)
 	cam.current = true
@@ -120,7 +144,15 @@ func _process(delta: float) -> void:
 					_goto(State.DEPLOYED)
 
 	piston.position.x = -progress * stroke
+	_update_rod()
 	_update_label()
+
+
+func _update_rod() -> void:
+	# Rod spans from the (moving) piston rear to the (fixed) housing front.
+	var piston_rear := piston_rear_deployed - progress * stroke
+	rod_mesh.height = maxf(housing_front - piston_rear, 0.001)
+	rod.position = Vector3((piston_rear + housing_front) * 0.5, 0.0, 0.0)
 
 
 func _goto(s: int) -> void:

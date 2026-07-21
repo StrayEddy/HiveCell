@@ -143,6 +143,39 @@ and (if it moves) wired in the Godot scene.
 
 ---
 
+## ADR-0007 — Drive: central electric linear actuator; bore-as-guide (no external rails)
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision.** A single central electric linear actuator (self-locking lead/ball
+screw preferred) behind the piston in the service area drives the stroke: rod
+translates -X to close, +X to deploy. Guidance is NOT external rails but the
+"syringe" scheme: (1) the bore guides the piston laterally at the front via wear
+rings; (2) the non-circular rounded-rectangle section prevents rotation for free;
+(3) the actuator supports the rear. Representative geometry: rod 70 mm dia, housing
+160 mm dia x 700 mm. Total install depth behind wall = 3.26 m.
+
+**Why external rails were rejected.** Linear rails run alongside the travel, outside
+the part; connecting them to a piston inside a sealed bore needs a longitudinal SLOT
+through the barrel wall -> breaks the seal and hygiene barrier. The syringe topology
+forbids it, and provides guidance intrinsically instead.
+
+**First-order sizing (scripts/actuator_sizing.py; assumptions flagged there).**
+- piston mass SOLID = 2579 kg -> the model demands lightweighting; ~160 kg as a 6 mm
+  shell. Real piston = face plate + ribs (future milestone).
+- seal drag dominates: 595 N of 611 N resistive (seals are the thing to engineer).
+- design force ~1221 N (x2 SF) -> a modest electric cylinder.
+- speed 3.67 mm/s; power ~4.5 W elec; energy 0.75 Wh per stroke (negligible).
+
+**Type choice.** Electric screw over hydraulic/pneumatic: no fluid/compressor
+(hygiene, maintenance), self-locking holds the flush piston with zero power and
+resists a vandal push (priorities #1/#3/#5).
+
+**Placeholders.** Actuator geometry is representative (space claim), not a selected
+unit. Seal drag is the biggest unknown -> validate by test.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
