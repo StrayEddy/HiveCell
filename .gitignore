@@ -8,9 +8,9 @@
 *.blend2
 *.blend3
 
-# Godot
+# Godot 4: ignore only the .godot/ cache; commit *.import and *.uid sidecars
+# (portable, deterministic import settings + stable resource IDs)
 .godot/
-*.import
 
 # Python
 __pycache__/
