@@ -12,6 +12,10 @@
 .godot/
 *.import
 
+# Python
+__pycache__/
+*.pyc
+
 # OS / editor
 .DS_Store
 *~
