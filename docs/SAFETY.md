@@ -53,7 +53,9 @@ not started.
   occupant-operated release device. An accessible release was rejected: it is a
   vandalism/abuse surface in unattended public units, and the sealed-in trap is
   already removed by geometry (the piston always sweeps toward the open mouth, never
-  enclosing the occupant). Implementation TBD (ADR).
+  enclosing the occupant). Fail behavior is position-dependent: back-drivable in the
+  occupant zone (pin relief), a passive latch holds the flush end without power (stays
+  closed, no occupant can be there). See **ADR-0009**.
 - **SF5 Motion signalling + soft profile** — *[todo]* warning (light/sound) before and
   during motion; slow soft-start/stop; reduced final-approach speed.
 
@@ -84,14 +86,14 @@ must not sustain a holding force without power** (F3): on power loss during moti
 transmission fails OPEN / back-drivable, so a pin relieves passively with no
 accessible part.
 
-Implementation options (ADR to follow): (a) a non-self-locking (back-drivable)
-transmission, or (b) a spring-disengaged clutch powered-engaged only during motion —
-so at-rest holding still uses the self-locking chain with zero standby power, but any
-motion-time power loss frees the piston. Cost: trades some of the self-locking drive's
-zero-power holding, and adds F6 (the release path) as a new item that must itself be
-reliable and self-tested. Retained elsewhere (not occupant-facing): an EXTERNAL /
-operator E-stop + remote tamper/fault monitoring — an availability function, not a
-trapped-occupant one.
+Implementation: **ADR-0009**. Fail behavior is position-dependent — back-drivable in
+the occupant zone (pin relief on power loss), with a PASSIVE flush latch holding the
+closed end without power (security + zero standby), engaging only where no occupant
+can be. A motor-side declutch does NOT work (the rigid chain's self-lock is intrinsic
+and downstream). KEY RISK: SF3 seal drag (~1.2 kN) may exceed a pinned occupant's
+elastic reaction, so back-drivability alone may not relieve a pin — may need a
+stored-energy return element (verify). Retained, not occupant-facing: an EXTERNAL /
+operator E-stop + remote tamper/fault monitoring (availability, not a trap function).
 
 ## Implementation status (digital twin)
 The safety *logic* has a reference implementation in the Godot twin. It models
@@ -135,7 +137,7 @@ H7 (manual release/SF4).
   select the elastomer/brush and PROVE a finger/hair deflects rather than shears,
   and validate the 150 N/m drag assumption by test (it dominates the actuator sizing).
 - Mouth height / site guarding rules (facility-level) — H4.
-- **SF4 fail-open drive:** confirm the chosen drive can fail open / be back-driven on
-  power loss (FMEA F3/F6); pick implementation (back-drivable transmission vs.
-  power-loss release clutch) in an ADR; verify a pin actually relieves passively
-  (stored elastic energy back-drives the piston) by analysis/test.
+- **SF4 fail-open drive (ADR-0009):** verify the rigid chain is back-drivable in the
+  occupant zone; verify a pin actually relieves passively despite ~1.2 kN seal drag
+  (else add a stored-energy return element); design the passive flush latch + its
+  fail-safe powered release; confirm the latch zone is provably past any occupant.

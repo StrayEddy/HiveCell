@@ -206,6 +206,73 @@ hold (~1.2 kN design; seal drag dominates). Validated headless on Godot 4.7.1.
 
 ---
 
+## ADR-0009 — SF4 as a fail-open drive + passive flush latch (no occupant release)
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context.** H7 (trapped under self-locking hold) and the SAFETY.md FMEA row F3: if
+SF1 mis-detects an occupant and power is lost mid-contact, a self-locking drive holds
+a sustained pin with no powered reverse — Severity 4, and nothing can act once power
+is gone. Separately, a firm requirement: once fully closed (flush), the pod must STAY
+closed without power (security / vandal resistance + zero standby energy).
+
+**Decision.** SF4 is a property of the drivetrain, not an occupant-operated device.
+1. **No interior manual release or E-stop.** The geometry already removes the
+   sealed-in trap: the occupant is always mouth-side of the piston, so a stopped sweep
+   leaves an OPEN pod they can exit (FMEA F4/F5). An accessible release is only a
+   vandalism/abuse surface (F7).
+2. **Fail-open in the occupant zone.** Through the closing stroke where an occupant
+   could be, loss of power must NOT sustain a holding force — the output is
+   back-drivable / releases, so a pin relieves passively (F3).
+3. **Passive flush latch for "stay closed without power."** A spring / over-center
+   latch holds the piston at the fully-closed (flush) end with zero power, engaging
+   ONLY in the final travel where the cavity is closed to flush and no occupant can be
+   present. A powered solenoid releases it at cycle start to re-open. Deployed (in-use)
+   rest is held by a mechanical hard stop.
+
+   => Fail behavior is **position-dependent**: back-drivable in the occupant zone,
+   latched only at flush. That is what reconciles "release to free a pin" with "stay
+   closed without power" — they apply in different, non-overlapping places.
+
+**Why.** Turns SF4 into a drivetrain property with nothing to touch or break. The
+flush latch also *improves* vandal resistance (a closed pod can't be pushed open) and
+needs no standby power. No occupant can be pinned where the latch holds (flush), so
+holding-without-power there is safe.
+
+**Rejected alternatives.**
+- Occupant-operated manual release + interior E-stop: vandalism/abuse surface;
+  unnecessary given the geometry (FMEA F7).
+- Self-locking chain holds everywhere without power: simplest, satisfies "stay
+  closed", but sustains a pin on power loss (F3). Rejected.
+- Motor-side declutch on power loss: does NOT work — the rigid chain's self-lock is
+  intrinsic and downstream of the motor, so it would still hold the pin. Pin relief
+  must come from a back-drivable OUTPUT, not a motor clutch.
+- Fully back-drivable + powered brake to hold closed: a powered / fail-applied brake
+  either needs standby power or re-creates the held-pin problem. Rejected in favour of
+  the passive flush latch.
+
+**Accepted costs / constraints / to verify.**
+- Gives up the zip-chain's zero-power holding mid-stroke and at deployed; holding
+  during operation is by a powered brake + end stops, at-rest-closed by the latch.
+- Adds the flush latch as a new part: must be reliable and self-tested; its powered
+  release must fail safe (release fails -> pod stays closed -> safe, since no occupant
+  can be inside a flush pod; an availability cost only).
+- **KEY RISK — seal drag vs. passive relief.** SF3 seal drag (~1.2 kN, ADR-0007) is a
+  friction force a back-drivable output must overcome to relieve a pin. If a pinned
+  occupant's elastic reaction is below seal drag, back-drivability ALONE will not
+  relieve the pin. Verify by analysis/test; if it can't, add a stored-energy return
+  element (spring / gas strut / counterbalance) biasing toward deployed in the
+  occupant zone, held off by the flush latch at the closed end.
+- Verify the rigid-chain actuator is genuinely back-drivable in the occupant zone
+  (link/tooth geometry); if not, an output-side release clutch is required there.
+- The latch engagement zone must be provably past any occupant presence (final flush
+  mm only); the SF2 safety edge covers the final-approach pinch (H8).
+- Supersedes the tentative options (a)/(b) sketched in SAFETY.md's FMEA note.
+
+**Follow-ups.** Model the latch + back-drive path in CAD once the mechanism is chosen.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -214,7 +281,8 @@ hold (~1.2 kN design; seal drag dominates). Validated headless on Godot 4.7.1.
    coupling, mechanical hard stops.
 3. Sealing/hygiene: perimeter wiper seals, floor slope + drain port, splash gaskets.
 4. Sensing/safety/control: position sensors + limit switches, occupancy/obstruction
-   sensors, pressure-sensitive safety edge, e-stop + manual release, controller.
+   sensors, pressure-sensitive safety edge, external/operator e-stop + passive flush
+   latch (NO interior release, ADR-0009), controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
 6. Cleaning subsystem: deferred; reserve mounting bosses and space claim.
 7. User interface: exterior availability indicator, interior grab feature, call button.
