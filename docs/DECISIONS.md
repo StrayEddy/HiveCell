@@ -158,9 +158,8 @@ the front via wear rings; (2) the non-circular section prevents rotation for fre
 
 **Depth consequence (important).** A rigid push-rod over the full 2.2 m stroke needs
 ~one stroke of depth behind it to retract into, so total install depth behind the
-wall = **4.91 m**. OPEN QUESTION: a rigid-chain ("zip chain") actuator coils into a
-compact magazine and could cut this to ~3.3 m at the cost of a more complex drive --
-to be decided.
+wall = **4.91 m**. RESOLVED in ADR-0008: a rigid-chain actuator was chosen instead,
+cutting depth to 2.86 m.
 
 **Why external rails were rejected.** Linear rails run alongside the travel, outside
 the part; connecting them to a piston inside a sealed bore needs a longitudinal SLOT
@@ -180,6 +179,30 @@ resists a vandal push (priorities #1/#3/#5).
 
 **Placeholders.** Actuator geometry is representative (space claim), not a selected
 unit. Seal drag is the biggest unknown -> validate by test.
+
+---
+
+## ADR-0008 — Actuator architecture: rigid-chain ("zip-chain"), not telescoping rod
+**Date:** 2026-07-21
+**Status:** Accepted (supersedes the telescoping-rod depth in ADR-0007)
+
+**Decision.** Drive the piston with a rigid-chain actuator: a chain whose links lock
+straight to PUSH and bend to coil into a compact flat magazine (no long retract tube).
+Parts: `ChainMagazine` (fixed, 300 deep x 650 sq) + `ChainColumn` (the exposed rigid
+column; variable length -- physically correct, chain feeds from the coil).
+
+**Why.** Cuts install depth from 4.91 m (rigid rod) to **2.86 m** -- a wall of cells
+can't afford ~5 m of back-of-house per unit. Rigid chain is proven (stage lifts /
+Serapid). Trade: a more complex drive than a plain screw (mild hit to
+simplicity/reliability), accepted for the space saving.
+
+**Twin note.** `ChainColumn` is procedural with a variable length -- correct here
+because chain length is conserved (column + coil = const), unlike a solid rod. The
+earlier stretching *rod* was wrong; a stretching *chain column* is right.
+
+**Placeholders.** Chain cross-section, magazine size are representative; real sizing
+(link geometry, coil radius, drive sprocket, motor) TBD. Force numbers from ADR-0007
+hold (~1.2 kN design; seal drag dominates). Validated headless on Godot 4.7.1.
 
 ---
 

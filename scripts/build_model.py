@@ -41,11 +41,11 @@ PARAMS = [
     ("runningClearance","3 mm",                          "piston-to-bore gap per side (seals bridge it)"),
     ("pistonLength",    "300 mm",                        "piston depth along X"),
     ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
-    ("actuatorRodDia",  "70 mm",                         "drive rod / screw diameter (representative)"),
-    ("actuatorBodyDia", "160 mm",                        "actuator motor+screw housing diameter (representative)"),
-    ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to housing front"),
-    ("actuatorMargin",  "150 mm",                        "rigid rod engagement kept inside housing at full extension"),
-    ("actuatorBodyLength", "=stroke + actuatorMargin",   "housing captures the rigid rod across the whole stroke"),
+    ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to magazine front"),
+    ("chainWidth",      "60 mm",                         "rigid-chain cross-section width Y (representative)"),
+    ("chainHeight",     "60 mm",                         "rigid-chain cross-section height Z (representative)"),
+    ("magazineDepth",   "300 mm",                        "chain magazine/drive extent along X (compact)"),
+    ("magazineSize",    "650 mm",                        "chain magazine Y and Z (holds the coiled chain)"),
 ]
 
 
@@ -181,29 +181,29 @@ def build_piston(doc, sheet):
     return piston
 
 
-def build_actuator(doc, sheet):
-    """Electric linear actuator (representative): a RIGID, fixed-length rod plus a
-    motor/screw housing behind the piston, in the service area. The rod is attached
-    to the piston rear and TRANSLATES with it (never changes length), telescoping
-    into the fixed housing: deployed -> tip deep inside housing; closed -> extended
-    out. A rigid push-rod over the full stroke needs ~one stroke of depth behind it,
-    so the housing length = stroke + margin. The non-circular bore stops the piston
-    rotating and gives front guidance (no external rails -- they'd need a slot
-    through the sealed bore). Unit selection follows scripts/actuator_sizing.py."""
+def build_chain_actuator(doc, sheet):
+    """Rigid-chain ('zip-chain') actuator. A special chain whose links lock straight
+    to PUSH the piston but bend to coil into a compact magazine, so there is NO long
+    retract tube -- keeping install depth shallow. The exposed rigid column genuinely
+    changes length as chain feeds from / returns to the coil (total length conserved
+    in the magazine), which is physically correct (unlike a solid rod). Guidance:
+    the non-circular bore stops rotation and supports the piston at the front.
+    ChainMagazine is fixed; ChainColumn is shown here at the DEPLOYED pose (short)."""
     bl = sheet.barrelLength.Value
     gap = sheet.actuatorGap.Value
-    rod_r = sheet.actuatorRodDia.Value / 2.0
-    body_r = sheet.actuatorBodyDia.Value / 2.0
-    housing_l = sheet.actuatorBodyLength.Value           # = stroke + margin
-    rod_l = gap + housing_l                               # tip reaches housing back when deployed
-    X = App.Vector(1, 0, 0)
+    cw = sheet.chainWidth.Value
+    ch = sheet.chainHeight.Value
+    md = sheet.magazineDepth.Value
+    ms = sheet.magazineSize.Value
+    mag_front = bl + gap
 
-    rod = doc.addObject("Part::Feature", "ActuatorRod")
-    rod.Shape = Part.makeCylinder(rod_r, rod_l, App.Vector(bl, 0, 0), X)
-    housing = doc.addObject("Part::Feature", "ActuatorHousing")
-    housing.Shape = Part.makeCylinder(body_r, housing_l, App.Vector(bl + gap, 0, 0), X)
+    magazine = doc.addObject("Part::Feature", "ChainMagazine")
+    magazine.Shape = Part.makeBox(md, ms, ms, App.Vector(mag_front, -ms / 2.0, -ms / 2.0))
+    # exposed rigid chain at deployed pose: piston rear -> magazine front (short)
+    column = doc.addObject("Part::Feature", "ChainColumn")
+    column.Shape = Part.makeBox(gap, cw, ch, App.Vector(bl, -cw / 2.0, -ch / 2.0))
     doc.recompute()
-    return rod, housing
+    return magazine, column
 
 
 def main():
@@ -215,7 +215,7 @@ def main():
     ref_body, _tip = build_cavity_reference(doc, sheet)
     shell = build_capsule_shell(doc, sheet)
     piston = build_piston(doc, sheet)
-    build_actuator(doc, sheet)
+    build_chain_actuator(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
@@ -246,9 +246,9 @@ def main():
     print(f"piston<->wall overlap volume={overlap:.1f} mm^3 (want ~0: {c:.0f} mm clearance)")
 
     install_depth = (sheet.barrelLength.Value + sheet.actuatorGap.Value
-                     + sheet.actuatorBodyLength.Value)
-    print(f"Actuator: rod {sheet.actuatorRodDia.Value:.0f}dia, "
-          f"housing {sheet.actuatorBodyDia.Value:.0f}dia x {sheet.actuatorBodyLength.Value:.0f}")
+                     + sheet.magazineDepth.Value)
+    print(f"Rigid-chain: magazine {sheet.magazineDepth.Value:.0f} deep x "
+          f"{sheet.magazineSize.Value:.0f} sq, chain {sheet.chainWidth.Value:.0f}x{sheet.chainHeight.Value:.0f}")
     print(f"Total install depth behind wall: {install_depth:.0f} mm ({install_depth / 1000:.2f} m)")
 
 

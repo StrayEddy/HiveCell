@@ -18,7 +18,7 @@ import MeshPart
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
-PARTS = ["CapsuleShell", "Piston", "ActuatorHousing", "ActuatorRod"]
+PARTS = ["CapsuleShell", "Piston", "ChainMagazine"]  # ChainColumn is drawn procedurally (variable length is physical for a chain)
 
 os.makedirs(OUTDIR, exist_ok=True)
 doc = App.open(DOC)
@@ -39,13 +39,17 @@ for name in PARTS:
 
 sheet = next(o for o in doc.Objects if o.TypeId == "Spreadsheet::Sheet")
 install_depth_mm = (sheet.barrelLength.Value + sheet.actuatorGap.Value
-                    + sheet.actuatorBodyLength.Value)
+                    + sheet.magazineDepth.Value)
 manifest = {
     "stroke_m": round(sheet.stroke.Value / 1000.0, 4),
     "barrel_length_m": round(sheet.barrelLength.Value / 1000.0, 4),
     "install_depth_m": round(install_depth_mm / 1000.0, 4),
+    "piston_rear_deployed_m": round(sheet.barrelLength.Value / 1000.0, 4),
+    "magazine_front_m": round((sheet.barrelLength.Value + sheet.actuatorGap.Value) / 1000.0, 4),
+    "chain_width_m": round(sheet.chainWidth.Value / 1000.0, 4),
+    "chain_height_m": round(sheet.chainHeight.Value / 1000.0, 4),
     "retract_seconds_real": 600,     # ~10 min real-world retraction
-    "moving_parts": ["Piston", "ActuatorRod"],   # both translate -X by progress*stroke
+    "moving_parts": ["Piston"],      # + procedural ChainColumn feeds from the coil
     "parts": PARTS,
 }
 with open(os.path.join(OUTDIR, "hivecell.json"), "w") as f:

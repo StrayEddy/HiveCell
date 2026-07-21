@@ -13,10 +13,15 @@ const MODELS := "res://models/"
 
 var stroke := 2.2                  ## meters, overwritten from manifest
 var retract_real := 600.0          ## real-world seconds, from manifest
-var install_depth := 4.91          ## meters, full depth behind wall
+var install_depth := 2.86          ## meters, full depth behind wall
+var piston_rear_deployed := 2.5    ## meters
+var magazine_front := 2.56         ## meters, fixed chain magazine mouth
+var chain_w := 0.06                ## meters (Y)
+var chain_h := 0.06                ## meters (Z)
 
 var piston: MeshInstance3D
-var rod: MeshInstance3D
+var column: MeshInstance3D          ## rigid-chain exposed column (procedural)
+var column_mesh: BoxMesh
 var label: Label
 
 enum State { DEPLOYED, RETRACTING, CLOSED, EXTENDING }
@@ -40,6 +45,10 @@ func _load_manifest() -> void:
 		stroke = float(data.get("stroke_m", stroke))
 		retract_real = float(data.get("retract_seconds_real", retract_real))
 		install_depth = float(data.get("install_depth_m", install_depth))
+		piston_rear_deployed = float(data.get("piston_rear_deployed_m", piston_rear_deployed))
+		magazine_front = float(data.get("magazine_front_m", magazine_front))
+		chain_w = float(data.get("chain_width_m", chain_w))
+		chain_h = float(data.get("chain_height_m", chain_h))
 
 
 func _metal(color: Color, alpha := 1.0) -> StandardMaterial3D:
@@ -65,10 +74,16 @@ func _build_scene() -> void:
 	# Barrel semi-transparent so you can watch the piston inside; piston solid.
 	_add_part("CapsuleShell", _metal(Color(0.70, 0.75, 0.80), 0.22))
 	piston = _add_part("Piston", _metal(Color(0.85, 0.87, 0.90), 1.0))
-	_add_part("ActuatorHousing", _metal(Color(0.30, 0.32, 0.36), 1.0))  # fixed drive housing
-	# Rigid, fixed-length rod: attached to the piston, it TRANSLATES with it and
-	# telescopes into the housing -- it never changes length.
-	rod = _add_part("ActuatorRod", _metal(Color(0.60, 0.62, 0.66), 1.0))
+	_add_part("ChainMagazine", _metal(Color(0.30, 0.32, 0.36), 1.0))  # fixed coil + drive
+	# Rigid-chain column: links lock straight to push and coil into the magazine to
+	# retract. Its exposed length changes as chain feeds from the coil (total length
+	# conserved in the magazine) -- so a variable-length column here is PHYSICAL.
+	column_mesh = BoxMesh.new()
+	column_mesh.size = Vector3(0.001, chain_w, chain_h)
+	column = MeshInstance3D.new()
+	column.mesh = column_mesh
+	column.material_override = _metal(Color(0.55, 0.57, 0.60), 1.0)
+	add_child(column)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -35, 0)
@@ -128,8 +143,17 @@ func _process(delta: float) -> void:
 					_goto(State.DEPLOYED)
 
 	piston.position.x = -progress * stroke
-	rod.position.x = -progress * stroke   # rigid rod: same translation as the piston
+	_update_chain()
 	_update_label()
+
+
+func _update_chain() -> void:
+	# Rigid chain spans from the (moving) piston rear to the (fixed) magazine mouth;
+	# the remainder is coiled inside the magazine (total chain length conserved).
+	var piston_rear := piston_rear_deployed - progress * stroke
+	var col_len: float = maxf(magazine_front - piston_rear, 0.001)
+	column_mesh.size = Vector3(col_len, chain_w, chain_h)
+	column.position = Vector3((piston_rear + magazine_front) * 0.5, 0.0, 0.0)
 
 
 func _goto(s: int) -> void:
