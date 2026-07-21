@@ -21,6 +21,7 @@ All ASSUMPTIONS are constants below and clearly flagged (seal drag and the
 biomechanics numbers are the biggest unknowns).
 """
 import math
+import os
 import FreeCAD as App
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
@@ -29,7 +30,9 @@ DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 RHO_SS = 8000.0           # kg/m^3  stainless steel
 G = 9.81                  # m/s^2
 MU_GUIDE = 0.01           # low-friction linear guidance / wear rings
-SEAL_DRAG_PER_M = 150.0   # N per metre of seal lip (per lip; BIGGEST unknown)
+# N per metre of seal lip (per lip; BIGGEST unknown -- see seal_drag.py). Override
+# with env SEAL_DRAG_PER_M to test a low-friction seal spec, e.g. SEAL_DRAG_PER_M=40.
+SEAL_DRAG_PER_M = float(os.environ.get("SEAL_DRAG_PER_M", "150.0"))
 LIGHT_WALL_MM = 6.0       # equivalent shell thickness for a lightweighted piston
 SAFETY = 2.0              # design factor on actuator force (matches actuator_sizing)
 ETA = 0.5                 # drivetrain efficiency (for the closing-force burden note)

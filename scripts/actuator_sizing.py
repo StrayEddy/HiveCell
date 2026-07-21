@@ -9,6 +9,7 @@ guidance. Actuator fights seal drag + guide friction only. All ASSUMPTIONS are
 constants below and clearly the biggest unknowns (esp. seal drag); refine later.
 """
 import math
+import os
 import FreeCAD as App
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
@@ -17,7 +18,9 @@ DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 RHO_SS = 8000.0          # kg/m^3  stainless steel
 G = 9.81                 # m/s^2
 MU_GUIDE = 0.01          # low-friction linear guidance / wear rings
-SEAL_DRAG_PER_M = 150.0  # N per metre of seal lip (moderate; BIGGEST unknown)
+# N per metre of seal lip (moderate; BIGGEST unknown -- see seal_drag.py). Override
+# with env SEAL_DRAG_PER_M to test a low-friction seal spec, e.g. SEAL_DRAG_PER_M=40.
+SEAL_DRAG_PER_M = float(os.environ.get("SEAL_DRAG_PER_M", "150.0"))
 RETRACT_S = 600.0        # s   ~10 min retraction requirement
 SAFETY = 2.0             # design safety factor on force
 ETA = 0.5                # drivetrain efficiency (screw + gearing + motor)

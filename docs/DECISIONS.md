@@ -353,6 +353,53 @@ component tree. Add a damper spec. Re-confirm force/energy with the real spring 
 
 ---
 
+## ADR-0011 — Specify a low-friction seal (seal drag is the master design lever)
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context.** Seal drag is the dominant load and, via `pin_relief.py`, sets the SF4
+residual-pin floor (passive relief stalls when tissue reaction == seal drag). It
+therefore couples SF3 (the seal), SF4 (return spring / fail-open) and the actuator
+size. `seal_drag.py` (first principles, researched dry rubber-steel mu ~1.0-1.4) puts
+the credible range at ~16-700 N/m; the 150 N/m working assumption is a mid value, and
+a dry gritty street lip trends toward the HIGH end.
+
+**Decision.** Make LOW seal friction a hard requirement for SF3: specify a low-friction
+wiper (PTFE-faced / lubricated / brush), minimise lip count and interference, and
+MEASURE the drag on a real sample before freezing any force numbers.
+
+**Why (quantified, `SEAL_DRAG_PER_M` = 40 vs 150 N/m).**
+
+| metric | 150 N/m (dry lip) | 40 N/m (low-friction) |
+|--------|-------------------|-----------------------|
+| resisting force | 1206 N | 333 N |
+| passive residual pin | 1206 N (~10x safe) | 333 N (~3x safe) |
+| SF4 return spring | 1567 N | 433 N |
+| closing design force | 5546 N | 1532 N |
+
+Everything scales ~3.6x down. The spring's stored energy (the deploy-slam hazard)
+falls with it (~3.4 kJ -> ~0.95 kJ), easing the damper. Low friction does NOT remove
+the spring (passive-only-safe needs <=~13 N/m, i.e. near-frictionless), but it shrinks
+the whole SF4 + actuator apparatus from heavy to modest.
+
+**Rejected / not chosen.**
+- Aggressive dry elastomer lip (best wiping/hygiene): trends to the high end of the
+  drag range -> huge actuator + spring. Rejected as the primary sealing approach.
+
+**Accepted costs / to verify.**
+- A low-friction (PTFE / lubricated / brush) wiper may scrape LESS aggressively --
+  check hygiene + grit exclusion; may need a two-stage soft-scraper + low-friction
+  seal, with the drag budget counting both stages.
+- Lubrication in an unattended street unit: dry-film / grease retention, contamination.
+- MEASURE drag on a real sample (dry, with grit). This one number gates the actuator,
+  the SF4 spring, and whether ADR-0010's drive complexity is even warranted.
+
+**Follow-ups.** Once measured, re-run `pin_relief.py` / `actuator_sizing.py`
+(`SEAL_DRAG_PER_M=<n>`) and revisit ADR-0010 -- a small spring + light actuator may
+simplify the drive choice.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface

@@ -46,7 +46,10 @@ not started.
   wiper/brush seal fills the 3 mm so there is no open moving shear line (also serves
   hygiene + the seal-drag budget). Two lip rings on the piston perimeter; the
   COMPLIANCE (a finger/hair deflects the lip instead of being sheared) is a material
-  property — asserted, not yet proven by test.
+  property — asserted, not yet proven by test. **Low friction is now a hard
+  requirement (ADR-0011):** seal drag couples SF3 ↔ SF4 ↔ actuator — it sets the SF4
+  residual-pin floor and the actuator force, so a low-friction seal (PTFE/lubricated/
+  brush) shrinks the SF4 spring + actuator ~3.6x (40 vs 150 N/m). Must be measured.
 - **SF4 Fail-open drive** *(was: manual release + interior E-stop)* — *[decision:
   design-out, see FMEA]* power loss must not sustain a holding force; the drive fails
   OPEN / back-drivable so a mis-detected pin relieves passively — no lever, no
@@ -134,9 +137,11 @@ H7 (manual release/SF4).
   limit is a viable backstop (discriminates yield vs magnitude). Real cap must come
   from injury data + the drive's *actual* force-limitability; SF1 remains primary
   either way (force alone cannot be trusted if a heavy jam can exceed the cap).
-- **SF3 lip material + compliance:** geometry + drag budget exist; still need to
-  select the elastomer/brush and PROVE a finger/hair deflects rather than shears,
-  and validate the 150 N/m drag assumption by test (it dominates the actuator sizing).
+- **SF3 lip material + compliance + LOW FRICTION (ADR-0011):** select a low-friction
+  wiper (PTFE/lubricated/brush) and PROVE a finger/hair deflects rather than shears.
+  Seal drag is the master lever (couples SF3/SF4/actuator; `seal_drag.py` range
+  ~16-700 N/m) — MEASURE it on a real sample (dry, with grit); it gates the SF4 spring,
+  the actuator, and whether ADR-0010's drive complexity is warranted.
 - Mouth height / site guarding rules (facility-level) — H4.
 - **SF4 fail-open drive (ADR-0009):** first-order check (`pin_relief.py`) says passive
   relief is insufficient (~1.2 kN residual) → a ~1.5 kN return element is required (or
