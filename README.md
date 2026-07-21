@@ -16,6 +16,34 @@ Retracted, the piston is the floor/back of an open sleeping capsule. Advanced, i
 own face becomes the flush public wall — no separate door. The sweep of the piston
 performs cleaning and seals the cavity on the hidden service side.
 
+## Safety status
+
+This machine moves a powered steel piston through a space people occupy, and users are
+assumed VULNERABLE (asleep, intoxicated, unwell) and unable to self-rescue — so safety
+is the first design constraint, not a feature. Full analysis in
+[`docs/SAFETY.md`](docs/SAFETY.md) (hazards, FMEA, safety functions); decisions in
+[`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+Current state — **design + simulation / first-order analysis, no certified hardware yet:**
+
+| Safety function | Status |
+|-----------------|--------|
+| SF1 Occupancy detection (primary) | fail-safe voting logic in the twin + self-test — `[sim]` |
+| SF2 Contact-force reaction (safety edge) | independent force-cap trip in the twin + self-test — `[sim]` |
+| SF3 Gap-filling wiper seal | CAD geometry + drag budget; low friction now required (ADR-0011) — `[cad]` |
+| SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch (ADR-0009) — `[decision]` |
+| SF5 Motion signalling + soft profile | not started |
+
+The SF1+SF2 interlock is a shared, headless-testable state machine; its core invariant
+— *the sweep never advances while a safety trip is active* — is enforced by a self-test
+that gates every push (see Setup). The design principle is PREVENT (never move while
+occupied) → REACT (stop & reverse on contact) → fail safe; "push the occupant out" is
+not a mode the machine can enter.
+
+**Biggest open risk:** seal drag is the master variable — it couples the seal (SF3), the
+SF4 return spring, and the actuator size, yet is currently only estimated (~16–700 N/m).
+It must be measured on a real seal sample before the force numbers are frozen (ADR-0011).
+
 ## Software stack
 
 | Tool     | Role                                    |
