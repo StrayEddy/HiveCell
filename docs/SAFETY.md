@@ -90,10 +90,11 @@ Implementation: **ADR-0009**. Fail behavior is position-dependent — back-driva
 the occupant zone (pin relief on power loss), with a PASSIVE flush latch holding the
 closed end without power (security + zero standby), engaging only where no occupant
 can be. A motor-side declutch does NOT work (the rigid chain's self-lock is intrinsic
-and downstream). KEY RISK: SF3 seal drag (~1.2 kN) may exceed a pinned occupant's
-elastic reaction, so back-drivability alone may not relieve a pin — may need a
-stored-energy return element (verify). Retained, not occupant-facing: an EXTERNAL /
-operator E-stop + remote tamper/fault monitoring (availability, not a trap function).
+and downstream). CHECKED (`scripts/pin_relief.py`): passive back-drive stalls at the
+seal drag, so the residual pin floors at ~1.2 kN ≈ 10x a safe force — passive relief
+is INSUFFICIENT, so a ~1.5 kN stored-energy return element is REQUIRED (raising
+closing force ~2.3x). Retained, not occupant-facing: an EXTERNAL / operator E-stop +
+remote tamper/fault monitoring (availability, not a trap function).
 
 ## Implementation status (digital twin)
 The safety *logic* has a reference implementation in the Godot twin. It models
@@ -137,7 +138,9 @@ H7 (manual release/SF4).
   select the elastomer/brush and PROVE a finger/hair deflects rather than shears,
   and validate the 150 N/m drag assumption by test (it dominates the actuator sizing).
 - Mouth height / site guarding rules (facility-level) — H4.
-- **SF4 fail-open drive (ADR-0009):** verify the rigid chain is back-drivable in the
-  occupant zone; verify a pin actually relieves passively despite ~1.2 kN seal drag
-  (else add a stored-energy return element); design the passive flush latch + its
-  fail-safe powered release; confirm the latch zone is provably past any occupant.
+- **SF4 fail-open drive (ADR-0009):** first-order check (`pin_relief.py`) says passive
+  relief is insufficient (~1.2 kN residual) → a ~1.5 kN return element is required (or
+  a drag-shedding seal); add it to the drive concept and re-run actuator sizing (~2.3x
+  closing force). Verify the rigid chain is back-drivable in the occupant zone; design
+  the passive flush latch + fail-safe powered release; confirm the latch zone is
+  provably past any occupant; confirm all numbers with real tissue/seal data.

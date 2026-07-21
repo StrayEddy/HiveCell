@@ -257,19 +257,26 @@ holding-without-power there is safe.
 - Adds the flush latch as a new part: must be reliable and self-tested; its powered
   release must fail safe (release fails -> pod stays closed -> safe, since no occupant
   can be inside a flush pod; an availability cost only).
-- **KEY RISK — seal drag vs. passive relief.** SF3 seal drag (~1.2 kN, ADR-0007) is a
-  friction force a back-drivable output must overcome to relieve a pin. If a pinned
-  occupant's elastic reaction is below seal drag, back-drivability ALONE will not
-  relieve the pin. Verify by analysis/test; if it can't, add a stored-energy return
-  element (spring / gas strut / counterbalance) biasing toward deployed in the
-  occupant zone, held off by the flush latch at the closed end.
+- **Seal drag vs. passive relief — CHECKED (`scripts/pin_relief.py`, first-order).**
+  Back-drive stalls when the tissue reaction equals the seal drag, so the residual pin
+  floors at the resisting force ~1.2 kN — about **10x** a safe sustained contact force
+  (~120 N). **Passive relief alone is INSUFFICIENT.** Therefore a stored-energy return
+  element (~1.5 kN spring / gas strut biasing toward deployed, held off by the flush
+  latch at close) is **required** to unload the occupant — at a cost of ~2.3x the
+  closing design force (2411 -> ~5546 N). Reducing seal drag enough (<=~13 N/m, a >11x
+  cut) is not credible for a lip seal. Alternative worth exploring: a seal that sheds
+  its drag on power loss (relaxes / retracts) so passive back-drive suffices. Confirm
+  with real tissue + seal-drag data before freezing.
 - Verify the rigid-chain actuator is genuinely back-drivable in the occupant zone
   (link/tooth geometry); if not, an output-side release clutch is required there.
 - The latch engagement zone must be provably past any occupant presence (final flush
   mm only); the SF2 safety edge covers the final-approach pinch (H8).
 - Supersedes the tentative options (a)/(b) sketched in SAFETY.md's FMEA note.
 
-**Follow-ups.** Model the latch + back-drive path in CAD once the mechanism is chosen.
+**Follow-ups.** Add the return element (~1.5 kN) to the drive concept and re-run
+actuator sizing with the higher closing force; or investigate a power-loss
+drag-shedding seal as an alternative. Model the latch + back-drive path in CAD once
+the mechanism is chosen. Confirm the pin-relief numbers with real tissue/seal data.
 
 ---
 
