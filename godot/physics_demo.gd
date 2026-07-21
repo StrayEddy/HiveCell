@@ -114,11 +114,14 @@ func _build_world() -> void:
 	add_child(world)
 
 	var cam := Camera3D.new()
-	# High front-above angle looking down into the open-top pod, so the contents
-	# and the sweep are clearly visible; still catches the mouth ejection at x<0.
-	cam.position = Vector3(0.7, 3.7, 3.1)
+	# Near top-down: look almost straight into the open-top pod so the contents
+	# and the sweep read like a plan view. Small +Z offset keeps a slight tilt
+	# (and a valid up vector) and still catches the mouth ejection at x<0.
+	cam.position = Vector3(0.7, 5.2, 0.6)
 	add_child(cam)
-	cam.look_at(Vector3(0.85, -0.25, 0.0), Vector3.UP)
+	# Looking near-straight-down, so use -Z as "up" on screen (Vector3.UP would be
+	# parallel to the view direction and is invalid). +X (pod depth) reads L->R.
+	cam.look_at(Vector3(0.7, 0.0, -0.05), Vector3(0, 0, -1))
 	cam.current = true
 
 	var canvas := CanvasLayer.new()
