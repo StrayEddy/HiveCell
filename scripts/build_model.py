@@ -38,7 +38,9 @@ PARAMS = [
     ("floorWidth",      "=cavityWidth - 2 * cornerRadius", "flat floor width (derived); > shoulderP95"),
     ("wallThickness",   "6 mm",                          "STRUCTURAL PLACEHOLDER - TBD by analysis"),
     ("stroke",          "=cavityLength",                 "piston travel, deployed -> flush (derived)"),
-    ("barrelLength",    "=cavityLength",                 "fixed sleeve length; TBD extend by piston+service (M4)"),
+    ("runningClearance","3 mm",                          "piston-to-bore gap per side (seals bridge it)"),
+    ("pistonLength",    "300 mm",                        "piston depth along X"),
+    ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
 ]
 
 
@@ -155,6 +157,25 @@ def build_capsule_shell(doc, sheet):
     return shell
 
 
+def build_piston(doc, sheet):
+    """Piston: the single moving part -- a rounded-rectangular plug riding in the
+    bore with `runningClearance` per side (seals bridge the gap, added later). Its
+    flat front face is the occupant's back wall (deployed) and the flush exterior
+    wall (closed). Modeled as a solid plug at the DEPLOYED position (front face at
+    X=cavityLength); lightweighting (ribs/shelled face) comes later."""
+    w = sheet.cavityWidth.Value
+    h = sheet.interiorHeight.Value
+    r = sheet.cornerRadius.Value
+    c = sheet.runningClearance.Value
+    pl = sheet.pistonLength.Value
+    front = sheet.cavityLength.Value  # deployed: front face at the deep end
+
+    piston = doc.addObject("Part::Feature", "Piston")
+    piston.Shape = rounded_box_shape(w - 2 * c, h - 2 * c, pl, r - c, x0=front)
+    doc.recompute()
+    return piston
+
+
 def main():
     if App.ActiveDocument and App.ActiveDocument.Name == "HiveCell":
         App.closeDocument("HiveCell")
@@ -163,6 +184,7 @@ def main():
     sheet = build_parameters(doc)
     ref_body, _tip = build_cavity_reference(doc, sheet)
     shell = build_capsule_shell(doc, sheet)
+    piston = build_piston(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
@@ -181,6 +203,16 @@ def main():
     print(f"solids: {len(shell.Shape.Solids)}  valid: {shell.Shape.isValid()}")
     print(f"hollow check: centre-in-void={shell.Shape.isInside(axis_pt, 0.01, True)} "
           f"(want False)  point-in-wall={shell.Shape.isInside(wall_pt, 0.01, True)} (want True)")
+
+    pbb = piston.Shape.BoundBox
+    c = sheet.runningClearance.Value
+    overlap = shell.Shape.common(piston.Shape).Volume
+    print(f"Piston bbox (mm):       X={pbb.XLength:.0f}  Y={pbb.YLength:.0f}  Z={pbb.ZLength:.0f}")
+    print(f"expected (bore-2c):     X={sheet.pistonLength.Value:.0f}  "
+          f"Y={sheet.cavityWidth.Value - 2 * c:.0f}  Z={sheet.interiorHeight.Value - 2 * c:.0f}")
+    print(f"deployed front face X={pbb.XMin:.0f} (want {sheet.cavityLength.Value:.0f})  "
+          f"back X={pbb.XMax:.0f} (want barrelLength {L:.0f})")
+    print(f"piston<->wall overlap volume={overlap:.1f} mm^3 (want ~0: {c:.0f} mm clearance)")
 
 
 main()

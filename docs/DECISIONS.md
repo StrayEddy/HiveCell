@@ -102,6 +102,27 @@ piston + actuator once the piston is sized (M4).
 
 ---
 
+## ADR-0005 — Piston: the single moving part
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision.** The `Piston` is a rounded-rectangular plug riding in the bore with a
+`runningClearance` (3 mm/side), so cross-section = bore minus 2*clearance and
+pistonR = cornerRadius - clearance. `pistonLength` = 300 mm. Modeled at the DEPLOYED
+position: flat front face at X=cavityLength (the occupant's back wall), body extending
+to X=cavityLength+pistonLength. Its front face becomes the flush exterior wall when
+closed. Consequently `barrelLength = cavityLength + pistonLength`.
+
+**Why.** A running fit prevents binding; wiper seals (later) bridge the 3 mm gap and
+squeegee the bore, separating public/service sides. Piston depth resists tilt/jam.
+Modeling in the deployed pose means the whole mechanism's motion is ONE part
+translating -X by `stroke` -- ideal for the Godot digital twin.
+
+**Placeholders.** Solid plug now; lightweighting (ribs / shelled face) and seal
+grooves are later milestones. `pistonLength` and `runningClearance` are tunable.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
