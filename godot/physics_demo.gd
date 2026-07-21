@@ -39,6 +39,7 @@ var intruded := false
 
 
 func _ready() -> void:
+	randomize()   # different item layout every run
 	il.demo_seconds = 3.5
 	il.hold_seconds = 1.0
 	il.life_check_seconds = 0.6
@@ -137,7 +138,7 @@ func _build_world() -> void:
 
 
 # --- contents ----------------------------------------------------------------
-func _spawn_item(pos: Vector3, size: Vector3, c: Color, mass := 1.0) -> void:
+func _spawn_item(pos: Vector3, size: Vector3, c: Color, mass := 1.0, rot := Vector3.ZERO) -> void:
 	var body := RigidBody3D.new()
 	body.mass = mass
 	var cs := CollisionShape3D.new()
@@ -147,6 +148,7 @@ func _spawn_item(pos: Vector3, size: Vector3, c: Color, mass := 1.0) -> void:
 	body.add_child(cs)
 	body.add_child(_box_mesh_inst(size, _mat(c, 0.85)))
 	body.position = pos
+	body.rotation_degrees = rot
 	add_child(body)
 	spawned.append(body)
 
@@ -196,11 +198,15 @@ func _start_scenario(i: int) -> void:
 
 	var n: int = s["things"]
 	for k in n:
-		var x := 0.45 + (CAVITY_LEN - 0.9) * (float(k) + 0.5) / maxf(float(n), 1.0)
-		var z := (-0.25 if k % 2 == 0 else 0.25) * (1.0 if n > 1 else 0.0)
-		var sz := 0.16 + 0.06 * float(k % 3)
-		var col := Color.from_hsv(fmod(0.08 + 0.13 * float(k), 1.0), 0.55, 0.9)
-		_spawn_item(Vector3(x, sz * 0.5 + 0.02, z), Vector3(sz, sz, sz), col)
+		# Random scatter: position, size, drop height, spin, colour all vary so no
+		# two runs clear the same way (some tumble out clean, some snag or roll).
+		var x := randf_range(0.4, CAVITY_LEN - 0.35)
+		var z := randf_range(-0.28, 0.28)
+		var sz := Vector3(randf_range(0.13, 0.26), randf_range(0.12, 0.24), randf_range(0.13, 0.26))
+		var drop := randf_range(0.0, 0.5)             # falls in and settles differently
+		var rot := Vector3(0.0, randf_range(-180.0, 180.0), 0.0)
+		var col := Color.from_hsv(randf(), randf_range(0.45, 0.72), randf_range(0.8, 0.95))
+		_spawn_item(Vector3(x, sz.y * 0.5 + 0.02 + drop, z), sz, col, randf_range(0.7, 1.4), rot)
 
 	if s["person"]:
 		_spawn_person(Vector3(1.0, 0.32, 0.0))
