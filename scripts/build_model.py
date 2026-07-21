@@ -39,6 +39,9 @@ PARAMS = [
     ("wallThickness",   "6 mm",                          "STRUCTURAL PLACEHOLDER - TBD by analysis"),
     ("stroke",          "=cavityLength",                 "piston travel, deployed -> flush (derived)"),
     ("runningClearance","3 mm",                          "piston-to-bore gap per side (seals bridge it)"),
+    ("sealLipThickness","8 mm",                          "axial thickness of each wiper lip (SF3)"),
+    ("sealLipCount",    "2",                             "wiper lips per piston: front + rear (gap fill + hygiene scrape)"),
+    ("sealInterference","0.8 mm",                        "lip compression onto the bore (contact; used for drag)"),
     ("pistonLength",    "300 mm",                        "piston depth along X"),
     ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
     ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to magazine front"),
@@ -181,6 +184,36 @@ def build_piston(doc, sheet):
     return piston
 
 
+def build_wiper_seals(doc, sheet):
+    """WiperSeals (SF3): compliant lip rings on the piston perimeter that fill the
+    runningClearance gap so there is NO open moving 3 mm shear line (hazard H2).
+    Two lips (front + rear) also scrape the bore for hygiene. Modeled here as the
+    gap-filling ring geometry; the lips are elastomer/brush and COMPLIANT -- a
+    finger at the gap deflects the lip instead of being sheared. The rings ride
+    with the piston (shown at the DEPLOYED pose, like the piston)."""
+    w = sheet.cavityWidth.Value
+    h = sheet.interiorHeight.Value
+    r = sheet.cornerRadius.Value
+    c = sheet.runningClearance.Value
+    pl = sheet.pistonLength.Value
+    lip = sheet.sealLipThickness.Value
+    front = sheet.cavityLength.Value          # deployed piston front face
+    back = front + pl                          # piston rear
+
+    def ring(x0):
+        # Fill the annulus: outer = bore inner surface, inner = piston outer surface.
+        outer = rounded_box_shape(w, h, lip, r, x0=x0)
+        inner = rounded_box_shape(w - 2 * c, h - 2 * c, lip + 2.0, r - c, x0=x0 - 1.0)
+        return outer.cut(inner)
+
+    front_ring = ring(front)                   # occupant-facing edge
+    rear_ring = ring(back - lip)               # service-side edge
+    seals = doc.addObject("Part::Feature", "WiperSeals")
+    seals.Shape = Part.makeCompound([front_ring, rear_ring])
+    doc.recompute()
+    return seals
+
+
 def build_chain_actuator(doc, sheet):
     """Rigid-chain ('zip-chain') actuator. A special chain whose links lock straight
     to PUSH the piston but bend to coil into a compact magazine, so there is NO long
@@ -215,6 +248,7 @@ def main():
     ref_body, _tip = build_cavity_reference(doc, sheet)
     shell = build_capsule_shell(doc, sheet)
     piston = build_piston(doc, sheet)
+    seals = build_wiper_seals(doc, sheet)
     build_chain_actuator(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
@@ -244,6 +278,16 @@ def main():
     print(f"deployed front face X={pbb.XMin:.0f} (want {sheet.cavityLength.Value:.0f})  "
           f"back X={pbb.XMax:.0f} (want barrelLength {L:.0f})")
     print(f"piston<->wall overlap volume={overlap:.1f} mm^3 (want ~0: {c:.0f} mm clearance)")
+
+    sbb = seals.Shape.BoundBox
+    seal_in_shell = shell.Shape.common(seals.Shape).Volume
+    seal_in_piston = piston.Shape.common(seals.Shape).Volume
+    print(f"WiperSeals (SF3): {int(sheet.sealLipCount)} lips x "
+          f"{sheet.sealLipThickness.Value:.0f} mm, fill {c:.0f} mm gap; "
+          f"volume={seals.Shape.Volume / 1000.0:.1f} cm^3")
+    print(f"seals bbox (mm):        X={sbb.XLength:.0f}  Y={sbb.YLength:.0f}  Z={sbb.ZLength:.0f}")
+    print(f"seal<->shell overlap={seal_in_shell:.1f} (want ~0, touches bore)  "
+          f"seal<->piston overlap={seal_in_piston:.1f} (want ~0, hugs piston)")
 
     install_depth = (sheet.barrelLength.Value + sheet.actuatorGap.Value
                      + sheet.magazineDepth.Value)

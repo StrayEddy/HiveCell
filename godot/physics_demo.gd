@@ -138,6 +138,12 @@ func _build_world() -> void:
 	pmi.mesh = piston_mesh
 	pmi.material_override = _mat(Color(0.85, 0.87, 0.92), 0.3, 0.9)
 	piston.add_child(pmi)
+	# SF3 wiper seals: elastomer lip rings that fill the 3mm gap, riding with the
+	# piston. Visual only (piston collision already covers the plug).
+	var seals := MeshInstance3D.new()
+	seals.mesh = load(MODELS + "WiperSeals.obj")
+	seals.material_override = _mat(Color(0.11, 0.11, 0.13), 0.95)
+	piston.add_child(seals)
 	var pcs := CollisionShape3D.new()
 	pcs.shape = piston_mesh.create_convex_shape()
 	piston.add_child(pcs)

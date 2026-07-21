@@ -34,6 +34,7 @@ var chain_w := 0.06                ## meters (Y)
 var chain_h := 0.06                ## meters (Z)
 
 var piston: MeshInstance3D
+var seals: MeshInstance3D           ## SF3 wiper lip rings (ride with the piston)
 var column: MeshInstance3D          ## rigid-chain exposed column (procedural)
 var column_mesh: BoxMesh
 var bag: MeshInstance3D             ## the inanimate item to be cleared (procedural)
@@ -94,6 +95,11 @@ func _build_scene() -> void:
 	# Barrel semi-transparent so you can watch the piston inside; piston solid.
 	_add_part("CapsuleShell", _metal(Color(0.70, 0.75, 0.80), 0.22))
 	piston = _add_part("Piston", _metal(Color(0.85, 0.87, 0.90), 1.0))
+	# SF3 wiper seals: matte elastomer lip rings filling the 3mm gap; ride with piston.
+	var seal_mat := StandardMaterial3D.new()
+	seal_mat.albedo_color = Color(0.11, 0.12, 0.14)
+	seal_mat.roughness = 0.95
+	seals = _add_part("WiperSeals", seal_mat)
 	_add_part("ChainMagazine", _metal(Color(0.30, 0.32, 0.36), 1.0))  # fixed coil + drive
 	# Rigid-chain column: links lock straight to push and coil into the magazine to
 	# retract. Its exposed length changes as chain feeds from the coil (total length
@@ -163,6 +169,7 @@ func _process(delta: float) -> void:
 		bag_present = il.bag_present
 
 	piston.position.x = -progress * stroke
+	seals.position.x = piston.position.x   # seals ride with the piston
 	_update_chain()
 	_update_bag()
 	_update_label()

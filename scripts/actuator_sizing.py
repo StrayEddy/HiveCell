@@ -38,9 +38,10 @@ w = sheet.cavityWidth.Value - 2 * sheet.runningClearance.Value
 h = sheet.interiorHeight.Value - 2 * sheet.runningClearance.Value
 r = sheet.cornerRadius.Value - sheet.runningClearance.Value
 perim = (2 * (w - 2 * r) + 2 * (h - 2 * r) + 2 * math.pi * r) / 1000.0  # m
+lips = int(sheet.sealLipCount)   # SF3 wiper lips per piston (front + rear)
 
-# forces
-f_seal = SEAL_DRAG_PER_M * perim
+# forces -- each lip drags along the full perimeter, so total contact = perim*lips
+f_seal = SEAL_DRAG_PER_M * perim * lips
 f_fric = MU_GUIDE * m_light * G
 f_res = f_seal + f_fric
 f_design = SAFETY * f_res
@@ -54,8 +55,8 @@ energy_wh = p_elec * RETRACT_S / 3600.0
 print("--- actuator sizing (first-order) ---")
 print(f"piston mass  SOLID : {m_solid:8.0f} kg   <-- reality check: MUST lightweight")
 print(f"piston mass  light : {m_light:8.0f} kg   (~{LIGHT_WALL_MM:.0f} mm shell estimate)")
-print(f"seal perimeter     : {perim:8.2f} m")
-print(f"force seal drag    : {f_seal:8.0f} N   (@ {SEAL_DRAG_PER_M:.0f} N/m)")
+print(f"seal perimeter     : {perim:8.2f} m   ({lips} lips -> {perim * lips:.2f} m contact)")
+print(f"force seal drag    : {f_seal:8.0f} N   (@ {SEAL_DRAG_PER_M:.0f} N/m x {lips} lips)")
 print(f"force guide fric   : {f_fric:8.1f} N   (mu={MU_GUIDE})")
 print(f"force resistive    : {f_res:8.0f} N")
 print(f"force DESIGN (x{SAFETY:.0f}): {f_design:8.0f} N   <-- pick actuator >= this")

@@ -42,8 +42,11 @@ not started.
   immediate stop and reverse to deployed. Independent of SF1. The trip is on YIELD,
   not resistance magnitude: movable trash stays bounded; a non-yielding body makes
   force climb steeply — that is what a cap below the injury threshold catches.
-- **SF3 Gap elimination** — *[todo]* compliant wiper/brush seal fills the 3 mm so
-  there is no open moving shear line (also serves hygiene + the seal-drag budget).
+- **SF3 Gap elimination** — *[cad: gap-fill geometry + drag budget]* compliant
+  wiper/brush seal fills the 3 mm so there is no open moving shear line (also serves
+  hygiene + the seal-drag budget). Two lip rings on the piston perimeter; the
+  COMPLIANCE (a finger/hair deflects the lip instead of being sheared) is a material
+  property — asserted, not yet proven by test.
 - **SF4 Manual release + interior E-stop** — *[todo]* a trapped person can stop and
   free themselves without power or tools.
 - **SF5 Motion signalling + soft profile** — *[todo]* warning (light/sound) before and
@@ -69,9 +72,15 @@ performance-level (PL) claim.
   model demonstrates yield-vs-magnitude: a 10-item trash pile peaks ~63 N (bounded,
   yields) while a non-yielding body spikes to ~138 N and trips SF2. Includes the
   SENSOR BLIND case where SF1 misses the occupant and SF2 alone catches the contact.
+- `scripts/build_model.py` — the wiper seals (SF3): two lip rings on the piston
+  perimeter filling the 3 mm gap, verified to touch the bore and hug the piston
+  (~0 overlap). `scripts/actuator_sizing.py` budgets their drag: 2 lips × ~4 m
+  perimeter @ 150 N/m ⇒ ~1190 N, the dominant load (design force ~2411 N, ×2 factor).
+  Exported to both twins as `WiperSeals.obj`, riding with the piston.
 
-Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2.
-Unaddressed: H2 (gap/SF3), H4 (mouth height), H7 (manual release/SF4).
+Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,
+H2 gap-fill *geometry* by SF3 (compliance TBV). Unaddressed: H4 (mouth height),
+H7 (manual release/SF4).
 
 ## Open items
 - **SF1 real sensing:** the voting *logic* exists in sim, but the physical sensor
@@ -81,6 +90,8 @@ Unaddressed: H2 (gap/SF3), H4 (mouth height), H7 (manual release/SF4).
   limit is a viable backstop (discriminates yield vs magnitude). Real cap must come
   from injury data + the drive's *actual* force-limitability; SF1 remains primary
   either way (force alone cannot be trusted if a heavy jam can exceed the cap).
+- **SF3 lip material + compliance:** geometry + drag budget exist; still need to
+  select the elastomer/brush and PROVE a finger/hair deflects rather than shears,
+  and validate the 150 N/m drag assumption by test (it dominates the actuator sizing).
 - Mouth height / site guarding rules (facility-level) — H4.
 - SF4: E-stop + manual release mechanism reachable from inside a confined capsule.
-- SF3: wiper/brush seal design + seal-drag budget.

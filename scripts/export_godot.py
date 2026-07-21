@@ -18,7 +18,7 @@ import MeshPart
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
-PARTS = ["CapsuleShell", "Piston", "ChainMagazine"]  # ChainColumn is drawn procedurally (variable length is physical for a chain)
+PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine"]  # ChainColumn is drawn procedurally (variable length is physical for a chain)
 
 os.makedirs(OUTDIR, exist_ok=True)
 doc = App.open(DOC)
@@ -49,7 +49,7 @@ manifest = {
     "chain_width_m": round(sheet.chainWidth.Value / 1000.0, 4),
     "chain_height_m": round(sheet.chainHeight.Value / 1000.0, 4),
     "retract_seconds_real": 600,     # ~10 min real-world retraction
-    "moving_parts": ["Piston"],      # + procedural ChainColumn feeds from the coil
+    "moving_parts": ["Piston", "WiperSeals"],  # seals ride with the piston; + procedural ChainColumn
     "parts": PARTS,
 }
 with open(os.path.join(OUTDIR, "hivecell.json"), "w") as f:

@@ -8,11 +8,13 @@
   "chain_height_m": 0.06,
   "retract_seconds_real": 600,
   "moving_parts": [
-    "Piston"
+    "Piston",
+    "WiperSeals"
   ],
   "parts": [
     "CapsuleShell",
     "Piston",
+    "WiperSeals",
     "ChainMagazine"
   ]
 }
