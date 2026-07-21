@@ -32,7 +32,7 @@ Current state — **design + simulation / first-order analysis, no certified har
 | SF2 Contact-force reaction (safety edge) | independent force-cap trip in the twin + self-test — `[sim]` |
 | SF3 Gap-filling wiper seal | CAD geometry + drag budget; low friction now required (ADR-0011) — `[cad]` |
 | SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch (ADR-0009) — `[decision]` |
-| SF5 Motion signalling + soft profile | soft velocity profile + signalling (green ready / red moving / orange closed) in the twin + self-test — `[sim]` |
+| SF5 Motion signalling + soft profile | soft velocity profile + signalling (green ready / red moving / orange closed / flashing-red alarm) in the twin + self-test — `[sim]` |
 
 The SF1+SF2 interlock is a shared, headless-testable state machine; its core invariant
 — *the sweep never advances while a safety trip is active* — is enforced by a self-test

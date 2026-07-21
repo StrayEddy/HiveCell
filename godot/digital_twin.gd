@@ -202,7 +202,7 @@ func _update_label() -> void:
 		SafetyInterlock.State.BLOCKED_OCCUPIED: "BLOCKED: life detected -> alert human",
 	}
 	var verdict := ("OCCUPIED" if il.life_present() else "clear")
-	var sig = ["READY", "MOVING", "CLOSED"][il.signal_level()]
+	var sig = ["READY", "MOVING", "CLOSED", "ALARM"][il.signal_level()]
 	var real_elapsed := int(round(progress * retract_real))
 	label.text = "HiveCell digital twin   [Space] pause\nState: %s\nInterlock: %s   (fault=%s, bag=%s)\nSweep: %d%%   (~%ds of %ds real)\nSF5 signal: %s   Piston X: %+.2f m" % [
 		names[il.state], verdict, str(sensor_fault), str(bag_present),
