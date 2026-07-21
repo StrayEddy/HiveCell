@@ -24,7 +24,7 @@ Risk = Severity (1-4) x Likelihood (1-4). Severity 4 = permanent injury/death.
 | H4 | Fall from an elevated mouth | Occupant pushed out of a mouth above floor level | 3 | 2 | 6 | Site rule: mouth at floor level, or guarding; occupancy interlock upstream |
 | H5 | Reach-in from outside during motion | Bystander/child reaches into the mouth while moving | 3 | 2 | 6 | External presence sensing at the mouth; safety edge; slow speed |
 | H6 | Moves while occupied (sensor/control fault) | False "empty", stuck sensor, wiring fault | 4 | 2 | 8 | Redundant, diverse sensors; fail-safe (fault -> no motion); rated safety controller |
-| H7 | Trapped under self-locking hold | Someone caught; drive is self-locking, power lost | 4 | 1 | 4 | Manual mechanical release + interior E-stop, reachable by a trapped person |
+| H7 | Trapped under self-locking hold | Someone caught; drive is self-locking, power lost | 4 | 1 | 4 | Fail-open / back-drivable drive: power loss cannot sustain a holding force (passive pin relief). NO occupant-operated release (see FMEA) |
 | H8 | Pinch at the mouth lip | Piston reaching flush pinches at the opening edge | 3 | 2 | 6 | Safety edge; final approach speed reduction; lip geometry |
 
 ## Safety functions
@@ -47,10 +47,51 @@ not started.
   hygiene + the seal-drag budget). Two lip rings on the piston perimeter; the
   COMPLIANCE (a finger/hair deflects the lip instead of being sheared) is a material
   property — asserted, not yet proven by test.
-- **SF4 Manual release + interior E-stop** — *[todo]* a trapped person can stop and
-  free themselves without power or tools.
+- **SF4 Fail-open drive** *(was: manual release + interior E-stop)* — *[decision:
+  design-out, see FMEA]* power loss must not sustain a holding force; the drive fails
+  OPEN / back-drivable so a mis-detected pin relieves passively — no lever, no
+  occupant-operated release device. An accessible release was rejected: it is a
+  vandalism/abuse surface in unattended public units, and the sealed-in trap is
+  already removed by geometry (the piston always sweeps toward the open mouth, never
+  enclosing the occupant). Implementation TBD (ADR).
 - **SF5 Motion signalling + soft profile** — *[todo]* warning (light/sound) before and
   during motion; slow soft-start/stop; reduced final-approach speed.
+
+## FMEA — trap / crush failure chain (basis for the SF4 decision)
+Component-level companion to the hazard register: how the drive/interlock can fail
+and what happens. Scale 1-4 each (engineering judgment, not measured): **S**everity,
+**O**ccurrence, **D**etection (4 = hard to detect / nothing acts). RPN = S×O×D.
+
+| # | Failure mode | Cause | Effect | S | O | D | RPN | Mitigation / decision |
+|---|--------------|-------|--------|---|---|---|-----|-----------------------|
+| F1 | SF1 reads false-empty | stuck/blind/mis-cal sensor | a sweep starts with a person inside | 4 | 2 | 3 | 24 | SF2 independent force trip (backstop); diverse redundant SF1 |
+| F2 | F1, then contact **with power** | — | SF2 force cap trips → stop & reverse → occupant freed | 1 | 2 | 1 | 2 | designed defense-in-depth path (works in sim) |
+| F3 | F1, then contact **and power lost**; self-locking drive holds | blackout, cut supply, fault | sustained pin/crush; no powered reverse; occupant held under force | 4 | 1 | 4 | 16 | **fail-open drive (SF4)** — power loss must not sustain a holding force |
+| F4 | Sweep stops in free space | any fault / power loss, no contact | occupant sits in an OPEN pod → exits under own power | 1 | 2 | 1 | 2 | none needed — geometry keeps occupant mouth-side of the piston |
+| F5 | Occupant sealed *behind* piston | — | — | — | — | — | — | eliminated by geometry (piston sweeps toward the mouth) |
+| F6 | Fail-open path does not release | clutch stuck engaged / not back-drivable | pin persists on power loss | 4 | 1 | 3 | 12 | reliable release path + periodic self-test of the clutch/back-drive |
+| F7 | Occupant-operated interior release *(had one been fitted)* | vandalism, nuisance, misuse | pod forced open / held out of service; tamper with mechanism | 1 | 3 | 2 | 6 | **not fitted** — rejected in favour of the passive fail-open drive |
+
+Note the driver is **F3**: low occurrence, but Severity 4 with **nothing able to
+detect or act once power is gone** (D=4). High severity + zero un-powered mitigation
+⇒ it must be *designed out*, not merely made unlikely (ALARP).
+
+### SF4 decision
+Reject an occupant-operated manual release + interior E-stop (F7): in unattended
+public street units it is a vandalism/abuse surface, and the geometry already removes
+the sealed-in trap (F4/F5). Replace it with an INHERENT requirement — **the drive
+must not sustain a holding force without power** (F3): on power loss during motion the
+transmission fails OPEN / back-drivable, so a pin relieves passively with no
+accessible part.
+
+Implementation options (ADR to follow): (a) a non-self-locking (back-drivable)
+transmission, or (b) a spring-disengaged clutch powered-engaged only during motion —
+so at-rest holding still uses the self-locking chain with zero standby power, but any
+motion-time power loss frees the piston. Cost: trades some of the self-locking drive's
+zero-power holding, and adds F6 (the release path) as a new item that must itself be
+reliable and self-tested. Retained elsewhere (not occupant-facing): an EXTERNAL /
+operator E-stop + remote tamper/fault monitoring — an availability function, not a
+trapped-occupant one.
 
 ## Implementation status (digital twin)
 The safety *logic* has a reference implementation in the Godot twin. It models
@@ -94,4 +135,7 @@ H7 (manual release/SF4).
   select the elastomer/brush and PROVE a finger/hair deflects rather than shears,
   and validate the 150 N/m drag assumption by test (it dominates the actuator sizing).
 - Mouth height / site guarding rules (facility-level) — H4.
-- SF4: E-stop + manual release mechanism reachable from inside a confined capsule.
+- **SF4 fail-open drive:** confirm the chosen drive can fail open / be back-driven on
+  power loss (FMEA F3/F6); pick implementation (back-drivable transmission vs.
+  power-loss release clutch) in an ADR; verify a pin actually relieves passively
+  (stored elastic energy back-drives the piston) by analysis/test.
