@@ -1,36 +1,41 @@
 extends Node3D
-## HiveCell physics scenario show.
-## The SAME safety logic as the twin (safety_interlock.gd) drives a real physics
-## sweep: an AnimatableBody3D piston pushes RigidBody3D contents out the mouth --
-## but ONLY when life-detection proves the pod empty. Plays through a set of
-## scenarios on loop so you can watch the interlock behave when you run the scene.
+## HiveCell physics scenario show (CAD-accurate).
+## Renders and collides against the ACTUAL FreeCAD-exported meshes
+## (models/CapsuleShell.obj, Piston.obj) — the same geometry the digital twin
+## uses — driven by the same safety_interlock. The piston plug physically sweeps
+## loose RigidBody items out the mouth, but ONLY when life-detection proves the
+## pod empty; a living thing present => no motion.
 ##
-## Coordinate frame (meters, Y up): the mouth (public opening) is at x = 0; the
-## cavity runs +X into the wall to x = CAVITY_LEN. Deployed piston sits deep;
-## clearing advances it toward x = 0, sweeping anything loose out the mouth where
-## it drops onto the exterior floor. A living thing present => piston never moves.
+## Frame (from the exported meshes, meters, Y-up): the bore runs along X, mouth
+## (public opening) at the shell's min-x (= 0); the cavity extends +X to the
+## deployed piston face; the piston retracts -X by `stroke` to sit flush at the
+## mouth. Gravity settles items on the bore's inner floor; ejected items drop
+## onto an exterior floor just outside the mouth. Bore dims are read from the
+## shell mesh AABB, so this stays in sync if the CAD changes and is re-exported.
 
-const CAVITY_LEN := 2.0
-const BORE_W := 0.9        ## cavity width  (Z)
-const BORE_H := 0.9        ## cavity height (Y)
-const PLATE_TH := 0.1      ## piston plate thickness (X)
+const MODELS := "res://models/"
 
 var il := SafetyInterlock.new()
 
+var stroke := 2.2          ## piston travel, from manifest
+var floor_y := -0.5        ## inner-bore floor Y, from the shell mesh
+var half_w := 0.4          ## usable half-width (Z) inside the bore
+var mouth_x := 0.0         ## public opening, shell min-x
+var cavity_x0 := 0.15      ## just inside the mouth
+var cavity_x1 := 2.0       ## just in front of the deployed piston face
+
 var piston: AnimatableBody3D
-var spawned: Array[Node] = []      ## contents + person, cleared between scenarios
+var spawned: Array[Node] = []
 var person: Node3D = null
 var title_label: Label
 var status_label: Label
 
-## title, number of loose items, someone inside, and whether someone intrudes
-## mid-sweep. Order matches the request + one bonus safety case at the end.
 var scenarios := [
-	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0, "person": false, "intrude": false},
-	{"title": "2 · ONE ITEM LEFT — no one inside",       "things": 1, "person": false, "intrude": false},
-	{"title": "3 · LOTS OF STUFF — no one inside",        "things": 7, "person": false, "intrude": false},
-	{"title": "4 · SOMEONE INSIDE — motion LOCKED",       "things": 0, "person": true,  "intrude": false},
-	{"title": "5 · INTRUSION MID-SWEEP — stop & reverse", "things": 2, "person": false, "intrude": true},
+	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0,  "person": false, "intrude": false},
+	{"title": "2 · ONE ITEM LEFT — no one inside",       "things": 1,  "person": false, "intrude": false},
+	{"title": "3 · LOTS OF STUFF — no one inside",        "things": 10, "person": false, "intrude": false},
+	{"title": "4 · SOMEONE INSIDE — motion LOCKED",       "things": 0,  "person": true,  "intrude": false},
+	{"title": "5 · INTRUSION MID-SWEEP — stop & reverse", "things": 2,  "person": false, "intrude": true},
 ]
 var scn := -1
 var scn_time := 0.0
@@ -40,6 +45,7 @@ var intruded := false
 
 func _ready() -> void:
 	randomize()   # different item layout every run
+	_load_manifest()
 	il.demo_seconds = 3.5
 	il.hold_seconds = 1.0
 	il.life_check_seconds = 0.6
@@ -47,12 +53,24 @@ func _ready() -> void:
 	_start_scenario(0)
 
 
-# --- world -------------------------------------------------------------------
-func _mat(c: Color, rough := 0.7, metal := 0.0) -> StandardMaterial3D:
+func _load_manifest() -> void:
+	var f := FileAccess.open(MODELS + "hivecell.json", FileAccess.READ)
+	if f == null:
+		return
+	var d = JSON.parse_string(f.get_as_text())
+	if d is Dictionary:
+		stroke = float(d.get("stroke_m", stroke))
+
+
+# --- helpers -----------------------------------------------------------------
+func _mat(c: Color, rough := 0.7, metal := 0.0, alpha := 1.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = c
+	m.albedo_color = Color(c.r, c.g, c.b, alpha)
 	m.roughness = rough
 	m.metallic = metal
+	if alpha < 1.0:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
 
@@ -77,31 +95,56 @@ func _static_box(size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> void:
 	add_child(body)
 
 
+# --- world (real CAD meshes) -------------------------------------------------
 func _build_world() -> void:
-	# Cavity floor + side walls (open at the mouth, x = 0, and at the top).
-	_static_box(Vector3(CAVITY_LEN, 0.1, BORE_W), Vector3(CAVITY_LEN * 0.5, -0.05, 0.0),
-		_mat(Color(0.32, 0.34, 0.38)))
-	_static_box(Vector3(CAVITY_LEN, BORE_H, 0.05), Vector3(CAVITY_LEN * 0.5, BORE_H * 0.5, BORE_W * 0.5),
-		_mat(Color(0.28, 0.30, 0.34)))
-	_static_box(Vector3(CAVITY_LEN, BORE_H, 0.05), Vector3(CAVITY_LEN * 0.5, BORE_H * 0.5, -BORE_W * 0.5),
-		_mat(Color(0.28, 0.30, 0.34)))
-	# Exterior floor just below the mouth so ejected items drop out and tumble.
-	_static_box(Vector3(3.0, 0.2, 3.0), Vector3(-1.4, -0.7, 0.0), _mat(Color(0.18, 0.19, 0.22)))
+	var shell_mesh: Mesh = load(MODELS + "CapsuleShell.obj")
+	var aabb := shell_mesh.get_aabb()
+	var wall := 0.012          # ~6mm sleeve, both surfaces
+	mouth_x = aabb.position.x
+	floor_y = aabb.position.y + wall
+	half_w = aabb.size.z * 0.5 - wall
+	cavity_x0 = mouth_x + 0.2
+	cavity_x1 = stroke - 0.25  # keep items in front of the deployed piston face
 
-	# Piston plate: kinematic, pushes RigidBodies. sync_to_physics is on by default.
+	# Shell: static body, concave (trimesh) collision from the real mesh, drawn
+	# semi-transparent so the interior reads from the near top-down camera.
+	var shell_body := StaticBody3D.new()
+	var smi := MeshInstance3D.new()
+	smi.mesh = shell_mesh
+	smi.material_override = _mat(Color(0.70, 0.75, 0.80), 0.35, 0.6, 0.20)
+	shell_body.add_child(smi)
+	var scs := CollisionShape3D.new()
+	scs.shape = shell_mesh.create_trimesh_shape()
+	shell_body.add_child(scs)
+	add_child(shell_body)
+
+	# Chain magazine: decorative only (behind the shell).
+	var mag := MeshInstance3D.new()
+	mag.mesh = load(MODELS + "ChainMagazine.obj")
+	mag.material_override = _mat(Color(0.30, 0.32, 0.36), 0.5, 0.8)
+	add_child(mag)
+
+	# Piston: animatable body, real mesh + convex hull collision (the plug is
+	# convex). sync_to_physics is on by default, so it pushes RigidBodies.
+	var piston_mesh: Mesh = load(MODELS + "Piston.obj")
 	piston = AnimatableBody3D.new()
+	var pmi := MeshInstance3D.new()
+	pmi.mesh = piston_mesh
+	pmi.material_override = _mat(Color(0.85, 0.87, 0.92), 0.3, 0.9)
+	piston.add_child(pmi)
 	var pcs := CollisionShape3D.new()
-	var pshape := BoxShape3D.new()
-	pshape.size = Vector3(PLATE_TH, BORE_H - 0.02, BORE_W - 0.02)
-	pcs.shape = pshape
+	pcs.shape = piston_mesh.create_convex_shape()
 	piston.add_child(pcs)
-	piston.add_child(_box_mesh_inst(pshape.size, _mat(Color(0.85, 0.87, 0.92), 0.3, 0.9)))
 	add_child(piston)
 	_place_piston()
 
+	# Exterior floor just outside/below the mouth to catch ejected items.
+	_static_box(Vector3(3.2, 0.2, 2.6), Vector3(mouth_x - 1.4, floor_y - 0.5, 0.0),
+		_mat(Color(0.16, 0.17, 0.20)))
+
 	# Lights + environment.
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52, -38, 0)
+	sun.rotation_degrees = Vector3(-62, -28, 0)
 	sun.light_energy = 1.25
 	add_child(sun)
 	var world := WorldEnvironment.new()
@@ -110,19 +153,16 @@ func _build_world() -> void:
 	env.background_color = Color(0.05, 0.06, 0.08)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.42, 0.47, 0.52)
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.6
 	world.environment = env
 	add_child(world)
 
+	# Near top-down camera looking into the bore (shell is see-through). +X (bore
+	# depth) reads left->right; -Z is screen-up since we look near-straight-down.
 	var cam := Camera3D.new()
-	# Near top-down: look almost straight into the open-top pod so the contents
-	# and the sweep read like a plan view. Small +Z offset keeps a slight tilt
-	# (and a valid up vector) and still catches the mouth ejection at x<0.
-	cam.position = Vector3(0.7, 5.2, 0.6)
+	cam.position = Vector3(1.0, 5.4, 0.7)
 	add_child(cam)
-	# Looking near-straight-down, so use -Z as "up" on screen (Vector3.UP would be
-	# parallel to the view direction and is invalid). +X (pod depth) reads L->R.
-	cam.look_at(Vector3(0.7, 0.0, -0.05), Vector3(0, 0, -1))
+	cam.look_at(Vector3(1.0, floor_y, -0.05), Vector3(0, 0, -1))
 	cam.current = true
 
 	var canvas := CanvasLayer.new()
@@ -154,11 +194,11 @@ func _spawn_item(pos: Vector3, size: Vector3, c: Color, mass := 1.0, rot := Vect
 
 
 func _spawn_person(pos: Vector3) -> void:
-	# Purely visual -- the interlock, not physics, is what protects them.
+	# Purely visual — the interlock, not physics, is what protects them.
 	var node := Node3D.new()
 	var cap := CapsuleMesh.new()
-	cap.radius = 0.18
-	cap.height = 0.95
+	cap.radius = 0.26
+	cap.height = 1.5
 	var mi := MeshInstance3D.new()
 	mi.mesh = cap
 	mi.material_override = _mat(Color(0.90, 0.45, 0.40), 0.6)
@@ -198,37 +238,34 @@ func _start_scenario(i: int) -> void:
 
 	var n: int = s["things"]
 	for k in n:
-		# Random scatter: position, size, drop height, spin, colour all vary so no
-		# two runs clear the same way (some tumble out clean, some snag or roll).
-		var x := randf_range(0.4, CAVITY_LEN - 0.35)
-		var z := randf_range(-0.28, 0.28)
-		var sz := Vector3(randf_range(0.13, 0.26), randf_range(0.12, 0.24), randf_range(0.13, 0.26))
-		var drop := randf_range(0.0, 0.5)             # falls in and settles differently
+		# Random scatter across the real bore: position, size, drop, spin, colour
+		# all vary so no two runs clear the same way.
+		var x := randf_range(cavity_x0, cavity_x1)
+		var z := randf_range(-half_w * 0.8, half_w * 0.8)
+		var sz := Vector3(randf_range(0.14, 0.30), randf_range(0.12, 0.26), randf_range(0.14, 0.30))
+		var drop := randf_range(0.0, 0.5)
 		var rot := Vector3(0.0, randf_range(-180.0, 180.0), 0.0)
 		var col := Color.from_hsv(randf(), randf_range(0.45, 0.72), randf_range(0.8, 0.95))
-		_spawn_item(Vector3(x, sz.y * 0.5 + 0.02 + drop, z), sz, col, randf_range(0.7, 1.4), rot)
+		_spawn_item(Vector3(x, floor_y + sz.y * 0.5 + 0.03 + drop, z), sz, col, randf_range(0.7, 1.4), rot)
 
 	if s["person"]:
-		_spawn_person(Vector3(1.0, 0.32, 0.0))
+		_spawn_person(Vector3(stroke * 0.5, floor_y + 0.28, 0.0))
 
 	_place_piston()
 
 
 func _place_piston() -> void:
-	# progress 0 = deployed (deep); 1 = flush at the mouth. Front face sweeps -X.
-	var x: float = CAVITY_LEN * (1.0 - il.progress)
-	piston.position = Vector3(x + PLATE_TH * 0.5, BORE_H * 0.5, 0.0)
+	# Deployed (progress 0) = piston at its natural pose (face at x = stroke);
+	# flush (progress 1) = retracted -stroke so the face sits at the mouth.
+	piston.position = Vector3(-il.progress * stroke, 0.0, 0.0)
 
 
 func _scenario_done() -> bool:
 	var s = scenarios[scn]
 	if s["person"]:
-		# It will park in BLOCKED_OCCUPIED and never move: show it, then advance.
 		return il.state == SafetyInterlock.State.BLOCKED_OCCUPIED and scn_time > 3.5
 	if s["intrude"]:
-		# Done once it has reversed back out after the intrusion.
 		return intruded and il.progress <= 0.02 and scn_time > 1.0
-	# Normal clear: it moved and returned to AVAILABLE, held a beat.
 	return saw_motion and il.state == SafetyInterlock.State.AVAILABLE and scn_time > 1.0
 
 
@@ -240,7 +277,7 @@ func _physics_process(delta: float) -> void:
 			and il.state == SafetyInterlock.State.CLEARING and il.progress > 0.45:
 		il.occupant_alive = true
 		intruded = true
-		_spawn_person(Vector3(0.25, 0.32, 0.0))
+		_spawn_person(Vector3(mouth_x + 0.35, floor_y + 0.28, 0.0))
 
 	il.step(delta)
 	if il.state == SafetyInterlock.State.CLEARING or il.state == SafetyInterlock.State.REDEPLOY:
