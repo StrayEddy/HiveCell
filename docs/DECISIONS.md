@@ -184,7 +184,8 @@ unit. Seal drag is the biggest unknown -> validate by test.
 
 ## ADR-0008 — Actuator architecture: rigid-chain ("zip-chain"), not telescoping rod
 **Date:** 2026-07-21
-**Status:** Accepted (supersedes the telescoping-rod depth in ADR-0007)
+**Status:** Accepted — but **challenged by ADR-0010 (proposed)**: SF4 (ADR-0009) wants
+a back-drivable drive, which negates rigid-chain's self-locking advantage. See ADR-0010.
 
 **Decision.** Drive the piston with a rigid-chain actuator: a chain whose links lock
 straight to PUSH and bend to coil into a compact flat magazine (no long retract tube).
@@ -277,6 +278,78 @@ holding-without-power there is safe.
 actuator sizing with the higher closing force; or investigate a power-loss
 drag-shedding seal as an alternative. Model the latch + back-drive path in CAD once
 the mechanism is chosen. Confirm the pin-relief numbers with real tissue/seal data.
+
+---
+
+## ADR-0010 — Actuator: single-acting tension-close + spring-open (supersedes ADR-0008)
+**Date:** 2026-07-21
+**Status:** Proposed (supersedes ADR-0008 if accepted)
+
+**Context.** ADR-0008 chose rigid-chain for three reasons: shallow install depth,
+self-locking hold without power, and compactness. Two later decisions moved the goal
+posts:
+- **ADR-0009 (SF4)** requires the drive to be BACK-DRIVABLE in the occupant zone (fail
+  open on power loss so a pin relieves), and moved holding-closed to a passive flush
+  latch. So self-locking is now a *liability*, and the drive need not self-lock at all.
+- **`pin_relief.py`** showed passive relief needs a ~1.5 kN stored-energy RETURN
+  element biasing toward deployed. Sizing (`actuator_sizing.py`) shows that spring
+  already drives the whole opening stroke (opening resist -362 N) -- i.e. a full-stroke
+  deploy actuator now exists for safety reasons regardless of the drive choice.
+
+Net: rigid-chain's self-locking advantage is gone (unwanted); only shallow depth
+remains, which other architectures also achieve.
+
+**Decision (proposed).** A SINGLE-ACTING drive: a tension member (toothed chain/belt
+or cable) that only PULLS the piston closed, with the SF4 return spring PUSHING it
+open.
+- Closing: a powered drum/sprocket winds the tension member in, fighting seal drag +
+  the return spring (~5.5 kN design, `actuator_sizing.py`).
+- Deploy: the return spring drives the piston out; the drive brakes/controls a damped
+  descent.
+- Holding: passive flush latch (closed) + hard stop (deployed); powered tension holds
+  mid-cycle.
+
+**Why.**
+- **Fail-open by nature (ADR-0009).** A tension member cannot push. On power loss it
+  goes slack and the spring deploys the piston, relieving a pin -- no clutch, no
+  self-lock to defeat. Checked: 1567 N spring vs 1206 N resist => net +361 N, unloads
+  to zero contact.
+- **Reuses the mandatory SF4 spring as the opener** -- the safety element and the
+  deploy actuator are the same part (fewer parts, not more).
+- **Shallow install depth** -- a drum/sprocket is as compact as the chain magazine, so
+  rigid-chain's one surviving advantage is retained.
+- **Simple / cheap / robust** -- chain-in-tension + drum is well-understood tech vs. a
+  niche rigid chain.
+
+**Rejected alternatives.**
+- Rigid-chain (ADR-0008): self-locking is now unwanted (must be forced back-drivable or
+  given an output clutch); its holding advantage is superseded by the flush latch. Only
+  shallow depth remains, which this option also achieves.
+- Ball / lead screw + motor: retract length ~ full stroke => deep install (what
+  ADR-0008 avoided); strongly self-locking (wrong way for fail-open).
+- Hydraulic cylinder: fail-open is easy (dump valve) but needs a stroke-length barrel
+  (deep) and adds fluid/leak/freeze/hygiene problems for an outdoor unattended unit.
+- Double-acting rigid drive + separate safety spring: more parts than folding the
+  deploy into the mandatory spring.
+
+**Accepted costs / constraints / to verify.**
+- Softer position control on a tension drive (cable stretch). Mitigate with a toothed
+  chain/belt (positive engagement); end stops + latch define the travel ends, and
+  mid-stroke precision is not critical for this slow motion.
+- The return spring stores ~3.4 kJ over the 2.2 m stroke (1567 N x stroke). Deploy MUST
+  be damped -- the piston cannot slam open. Size a damper; a gas strut gives spring +
+  damping in one.
+- Single-acting: if the spring fails, the pod won't deploy -> stuck CLOSED. Fails safe
+  (no occupant can be in a flush pod) but is an availability cost; the spring becomes a
+  reliability-critical item (inspect/monitor).
+- Closing design force ~5.5 kN on the winch/sprocket (x2 factor) -- verify the
+  drum/motor/gearing and the tension member rating.
+- Verify the drum freewheels/back-drives on power loss (not self-locking; a
+  fail-released brake, not a fail-applied one).
+
+**Follow-ups (if accepted).** CAD: replace ChainMagazine/ChainColumn with a drum +
+tension member + return spring + flush latch; re-export to the twin. Update the
+component tree. Add a damper spec. Re-confirm force/energy with the real spring rate.
 
 ---
 
