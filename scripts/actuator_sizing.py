@@ -22,6 +22,7 @@ RETRACT_S = 600.0        # s   ~10 min retraction requirement
 SAFETY = 2.0             # design safety factor on force
 ETA = 0.5                # drivetrain efficiency (screw + gearing + motor)
 LIGHT_WALL_MM = 6.0      # equivalent shell thickness for a lightweighted piston
+RETURN_MARGIN = 1.3      # SF4 return element vs. resisting force (ADR-0009/pin_relief.py)
 
 doc = App.open(DOC)
 sheet = next(o for o in doc.Objects if o.TypeId == "Spreadsheet::Sheet")
@@ -44,11 +45,18 @@ lips = int(sheet.sealLipCount)   # SF3 wiper lips per piston (front + rear)
 f_seal = SEAL_DRAG_PER_M * perim * lips
 f_fric = MU_GUIDE * m_light * G
 f_res = f_seal + f_fric
-f_design = SAFETY * f_res
 
-# speed / power / energy
+# SF4 return element (ADR-0009 / pin_relief.py): a stored-energy spring biases the
+# piston toward DEPLOYED so a power-loss pin relieves passively. It RESISTS closing
+# (the drive fights it) and ASSISTS opening -- so the CLOSING stroke sizes the drive.
+f_return = RETURN_MARGIN * f_res           # >= resisting, to fully unload a pin
+f_close = f_res + f_return                  # closing: seal drag + guide + return spring
+f_open = f_res - f_return                    # opening: spring-assisted (may be < 0)
+f_design = SAFETY * f_close                  # size on the demanding (closing) stroke
+
+# speed / power / energy (closing is the demanding stroke)
 v = (sheet.stroke.Value / 1000.0) / RETRACT_S      # m/s
-p_mech = f_res * v
+p_mech = f_close * v
 p_elec = p_mech / ETA
 energy_wh = p_elec * RETRACT_S / 3600.0
 
@@ -58,8 +66,12 @@ print(f"piston mass  light : {m_light:8.0f} kg   (~{LIGHT_WALL_MM:.0f} mm shell 
 print(f"seal perimeter     : {perim:8.2f} m   ({lips} lips -> {perim * lips:.2f} m contact)")
 print(f"force seal drag    : {f_seal:8.0f} N   (@ {SEAL_DRAG_PER_M:.0f} N/m x {lips} lips)")
 print(f"force guide fric   : {f_fric:8.1f} N   (mu={MU_GUIDE})")
-print(f"force resistive    : {f_res:8.0f} N")
-print(f"force DESIGN (x{SAFETY:.0f}): {f_design:8.0f} N   <-- pick actuator >= this")
+print(f"force resistive    : {f_res:8.0f} N   (seal drag + guide)")
+print(f"SF4 return spring  : {f_return:8.0f} N   (biases toward deployed; ADR-0009)")
+print(f"force CLOSE resist : {f_close:8.0f} N   (drive fights seal drag + return spring)")
+print(f"force OPEN  resist : {f_open:8.0f} N   (spring-assisted; <0 => spring drives, drive brakes)")
+print(f"force DESIGN (x{SAFETY:.0f}): {f_design:8.0f} N   <-- pick actuator >= this (closing stroke)")
+print(f"  (was {SAFETY * f_res:.0f} N before the SF4 return element)")
 print(f"travel speed       : {v * 1000:8.2f} mm/s  ({v:.5f} m/s)")
 print(f"power  mechanical  : {p_mech:8.1f} W")
 print(f"power  electrical  : {p_elec:8.1f} W   (eta={ETA})")
