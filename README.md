@@ -32,3 +32,24 @@ performs cleaning and seals the cavity on the hidden service side.
 - `godot/`   — simulation / digital twin project
 - `blender/` — rendering assets (later)
 - `docs/DECISIONS.md` — engineering decision log (read this first)
+- `docs/SAFETY.md`   — machine-safety analysis (hazards + safety functions)
+
+## Setup
+
+The piston retracts into a space people occupy, so its motion is gated behind a
+life-detection interlock (`godot/safety_interlock.gd`, per `docs/SAFETY.md`). A
+headless self-test enforces the core invariant — the clearing sweep never
+advances while life is detected — and a pre-push hook blocks pushes if it fails.
+
+After cloning, enable the hook once (it lives in `.githooks/`, but `git` must be
+pointed at it):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Run the self-tests manually anytime (set `GODOT_BIN` if Godot isn't on `PATH`):
+
+```sh
+./scripts/run_selftest.sh
+```
