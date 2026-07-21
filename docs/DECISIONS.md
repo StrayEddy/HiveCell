@@ -148,12 +148,19 @@ and (if it moves) wired in the Godot scene.
 **Status:** Accepted
 
 **Decision.** A single central electric linear actuator (self-locking lead/ball
-screw preferred) behind the piston in the service area drives the stroke: rod
-translates -X to close, +X to deploy. Guidance is NOT external rails but the
-"syringe" scheme: (1) the bore guides the piston laterally at the front via wear
-rings; (2) the non-circular rounded-rectangle section prevents rotation for free;
-(3) the actuator supports the rear. Representative geometry: rod 70 mm dia, housing
-160 mm dia x 700 mm. Total install depth behind wall = 3.26 m.
+screw preferred) behind the piston in the service area drives the stroke. The rod
+is RIGID and fixed-length: it is attached to the piston, TRANSLATES with it, and
+telescopes into the fixed housing (it never changes length). Guidance is NOT
+external rails but the "syringe" scheme: (1) the bore guides the piston laterally at
+the front via wear rings; (2) the non-circular section prevents rotation for free;
+(3) the actuator supports the rear. Representative geometry: rod 70 mm dia; housing
+160 mm dia x (stroke + 150) = 2350 mm.
+
+**Depth consequence (important).** A rigid push-rod over the full 2.2 m stroke needs
+~one stroke of depth behind it to retract into, so total install depth behind the
+wall = **4.91 m**. OPEN QUESTION: a rigid-chain ("zip chain") actuator coils into a
+compact magazine and could cut this to ~3.3 m at the cost of a more complex drive --
+to be decided.
 
 **Why external rails were rejected.** Linear rails run alongside the travel, outside
 the part; connecting them to a piston inside a sealed bore needs a longitudinal SLOT

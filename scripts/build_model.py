@@ -43,8 +43,9 @@ PARAMS = [
     ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
     ("actuatorRodDia",  "70 mm",                         "drive rod / screw diameter (representative)"),
     ("actuatorBodyDia", "160 mm",                        "actuator motor+screw housing diameter (representative)"),
-    ("actuatorBodyLength", "700 mm",                     "actuator housing length"),
     ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to housing front"),
+    ("actuatorMargin",  "150 mm",                        "rigid rod engagement kept inside housing at full extension"),
+    ("actuatorBodyLength", "=stroke + actuatorMargin",   "housing captures the rigid rod across the whole stroke"),
 ]
 
 
@@ -181,23 +182,26 @@ def build_piston(doc, sheet):
 
 
 def build_actuator(doc, sheet):
-    """Electric linear actuator (representative): a central rod + motor/screw
-    housing behind the piston, in the service area. The rod translates -X to
-    close and +X to deploy; the non-circular bore stops the piston rotating and
-    provides front guidance (no external rails -- they'd need a slot through the
-    sealed bore). Modeled at the DEPLOYED pose (rod short). Unit selection follows
-    scripts/actuator_sizing.py (design force ~1.2 kN)."""
+    """Electric linear actuator (representative): a RIGID, fixed-length rod plus a
+    motor/screw housing behind the piston, in the service area. The rod is attached
+    to the piston rear and TRANSLATES with it (never changes length), telescoping
+    into the fixed housing: deployed -> tip deep inside housing; closed -> extended
+    out. A rigid push-rod over the full stroke needs ~one stroke of depth behind it,
+    so the housing length = stroke + margin. The non-circular bore stops the piston
+    rotating and gives front guidance (no external rails -- they'd need a slot
+    through the sealed bore). Unit selection follows scripts/actuator_sizing.py."""
     bl = sheet.barrelLength.Value
     gap = sheet.actuatorGap.Value
     rod_r = sheet.actuatorRodDia.Value / 2.0
     body_r = sheet.actuatorBodyDia.Value / 2.0
-    body_l = sheet.actuatorBodyLength.Value
+    housing_l = sheet.actuatorBodyLength.Value           # = stroke + margin
+    rod_l = gap + housing_l                               # tip reaches housing back when deployed
     X = App.Vector(1, 0, 0)
 
     rod = doc.addObject("Part::Feature", "ActuatorRod")
-    rod.Shape = Part.makeCylinder(rod_r, gap, App.Vector(bl, 0, 0), X)
+    rod.Shape = Part.makeCylinder(rod_r, rod_l, App.Vector(bl, 0, 0), X)
     housing = doc.addObject("Part::Feature", "ActuatorHousing")
-    housing.Shape = Part.makeCylinder(body_r, body_l, App.Vector(bl + gap, 0, 0), X)
+    housing.Shape = Part.makeCylinder(body_r, housing_l, App.Vector(bl + gap, 0, 0), X)
     doc.recompute()
     return rod, housing
 
