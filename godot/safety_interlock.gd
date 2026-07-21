@@ -11,7 +11,7 @@ class_name SafetyInterlock
 ## back to the safe deployed position.
 
 enum State { AVAILABLE, LIFE_CHECK, CLEARING, CLEARED_HOLD, REDEPLOY, BLOCKED_OCCUPIED }
-enum SignalLevel { OFF, WARN, MOVING }   # SF5 signalling: what the warning light/sound shows
+enum SignalLevel { READY, MOVING, CLOSED }   # SF5 signalling: green / red / orange
 
 var profile := SoftProfile.new()    # SF5 soft velocity profile (shapes the sweep)
 
@@ -51,15 +51,16 @@ func advancing() -> bool:
 	return state == State.CLEARING
 
 
-## SF5 signalling: what the warning light/sound should indicate right now.
+## SF5 signalling: green = ready to occupy, red = about to move / moving / alerting,
+## orange = closed (flush).
 func signal_level() -> int:
 	match state:
-		State.LIFE_CHECK, State.BLOCKED_OCCUPIED:
-			return SignalLevel.WARN     # about to move, or holding + alerting a human
-		State.CLEARING, State.REDEPLOY:
-			return SignalLevel.MOVING
+		State.AVAILABLE:
+			return SignalLevel.READY     # green: deployed, ready to occupy
+		State.CLEARED_HOLD:
+			return SignalLevel.CLOSED     # orange: closed / flush
 		_:
-			return SignalLevel.OFF
+			return SignalLevel.MOVING     # red: about to move, moving, or alerting
 
 
 func step(delta: float) -> void:

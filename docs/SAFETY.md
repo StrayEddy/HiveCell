@@ -61,8 +61,9 @@ not started.
   closed, no occupant can be there). See **ADR-0009**.
 - **SF5 Motion signalling + soft profile** — *[sim]* warning (light/sound) before and
   during motion; slow soft-start/stop; reduced final-approach speed. Soft velocity
-  profile (`soft_profile.gd`: soft-start/stop + speed-limited final approach) and a
-  signalling level (OFF/WARN/MOVING → beacon) modelled in the twin + self-test.
+  profile (`soft_profile.gd`: soft-start/stop + speed-limited final approach) and
+  signalling (green = ready to occupy, red = about to move / moving, orange = closed →
+  beacon) modelled in the twin + self-test.
   Defense-in-depth only — never a primary safeguard.
 
 ## FMEA — trap / crush failure chain (basis for the SF4 decision)
@@ -123,8 +124,8 @@ performance-level (PL) claim.
   yields) while a non-yielding body spikes to ~138 N and trips SF2. Includes the
   SENSOR BLIND case where SF1 misses the occupant and SF2 alone catches the contact.
 - `godot/soft_profile.gd` — SF5 soft motion profile (soft-start, cruise, soft-stop,
-  speed-limited final approach) shaping the interlock's sweep velocity; a signalling
-  level (OFF/WARN/MOVING) drives a warning beacon in both twins. `test_soft_profile.gd`
+  speed-limited final approach) shaping the interlock's sweep velocity; signalling
+  (green ready / red moving / orange closed) drives a beacon in both twins. `test_soft_profile.gd`
   checks the shape, monotonicity, completion, and timing.
 - `scripts/build_model.py` — the wiper seals (SF3): two lip rings on the piston
   perimeter filling the 3 mm gap, verified to touch the bore and hug the piston
