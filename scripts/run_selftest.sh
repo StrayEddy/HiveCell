@@ -26,6 +26,10 @@ echo "run_selftest: using $BIN"
 # Ensure imports exist so res:// resolves headless.
 "$BIN" --headless --path "$REPO_ROOT/godot" --import >/dev/null 2>&1 || true
 
-echo "run_selftest: interlock self-test..."
-"$BIN" --headless --path "$REPO_ROOT/godot" --script res://tests/test_interlock.gd
-echo "run_selftest: all tests passed."
+rc=0
+for t in "$REPO_ROOT"/godot/tests/*.gd; do
+  name="$(basename "$t")"
+  echo "run_selftest: $name ..."
+  "$BIN" --headless --path "$REPO_ROOT/godot" --script "res://tests/$name" || rc=1
+done
+[ "$rc" -eq 0 ] && echo "run_selftest: all tests passed." || { echo "run_selftest: TESTS FAILED"; exit 1; }

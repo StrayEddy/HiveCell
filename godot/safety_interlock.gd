@@ -11,6 +11,9 @@ class_name SafetyInterlock
 ## back to the safe deployed position.
 
 enum State { AVAILABLE, LIFE_CHECK, CLEARING, CLEARED_HOLD, REDEPLOY, BLOCKED_OCCUPIED }
+enum SignalLevel { OFF, WARN, MOVING }   # SF5 signalling: what the warning light/sound shows
+
+var profile := SoftProfile.new()    # SF5 soft velocity profile (shapes the sweep)
 
 # --- tuning ---
 var demo_seconds := 8.0
@@ -48,6 +51,17 @@ func advancing() -> bool:
 	return state == State.CLEARING
 
 
+## SF5 signalling: what the warning light/sound should indicate right now.
+func signal_level() -> int:
+	match state:
+		State.LIFE_CHECK, State.BLOCKED_OCCUPIED:
+			return SignalLevel.WARN     # about to move, or holding + alerting a human
+		State.CLEARING, State.REDEPLOY:
+			return SignalLevel.MOVING
+		_:
+			return SignalLevel.OFF
+
+
 func step(delta: float) -> void:
 	t += delta
 	match state:
@@ -76,7 +90,7 @@ func step(delta: float) -> void:
 				reverse_from = progress
 				_goto(State.REDEPLOY)
 			else:
-				progress = clampf(t / demo_seconds, 0.0, 1.0)
+				progress = profile.advance(progress, delta, demo_seconds)  # SF5 soft
 				if progress >= 1.0:
 					bag_present = false
 					_goto(State.CLEARED_HOLD)
@@ -88,8 +102,13 @@ func step(delta: float) -> void:
 		State.REDEPLOY:
 			# Reverse to the safe deployed position from wherever the sweep was.
 			# Allowed even with life present (moving AWAY is the safe direction).
-			progress = clampf(reverse_from - t / demo_seconds, 0.0, 1.0)
-			if progress <= 0.0:
+			# Soft profile applied along the reverse stroke (SF5).
+			var span := maxf(reverse_from, 0.0001)
+			var r := (reverse_from - progress) / span   # 0..1 along the reverse
+			r = profile.advance(r, delta, demo_seconds)
+			progress = clampf(reverse_from * (1.0 - r), 0.0, 1.0)
+			if progress <= 0.001:
+				progress = 0.0
 				_goto(State.AVAILABLE)
 		State.BLOCKED_OCCUPIED:
 			# Hold still, alert a human. Re-verify only once it reads clear again.

@@ -59,8 +59,11 @@ not started.
   enclosing the occupant). Fail behavior is position-dependent: back-drivable in the
   occupant zone (pin relief), a passive latch holds the flush end without power (stays
   closed, no occupant can be there). See **ADR-0009**.
-- **SF5 Motion signalling + soft profile** — *[todo]* warning (light/sound) before and
-  during motion; slow soft-start/stop; reduced final-approach speed.
+- **SF5 Motion signalling + soft profile** — *[sim]* warning (light/sound) before and
+  during motion; slow soft-start/stop; reduced final-approach speed. Soft velocity
+  profile (`soft_profile.gd`: soft-start/stop + speed-limited final approach) and a
+  signalling level (OFF/WARN/MOVING → beacon) modelled in the twin + self-test.
+  Defense-in-depth only — never a primary safeguard.
 
 ## FMEA — trap / crush failure chain (basis for the SF4 decision)
 Component-level companion to the hazard register: how the drive/interlock can fail
@@ -119,6 +122,10 @@ performance-level (PL) claim.
   model demonstrates yield-vs-magnitude: a 10-item trash pile peaks ~63 N (bounded,
   yields) while a non-yielding body spikes to ~138 N and trips SF2. Includes the
   SENSOR BLIND case where SF1 misses the occupant and SF2 alone catches the contact.
+- `godot/soft_profile.gd` — SF5 soft motion profile (soft-start, cruise, soft-stop,
+  speed-limited final approach) shaping the interlock's sweep velocity; a signalling
+  level (OFF/WARN/MOVING) drives a warning beacon in both twins. `test_soft_profile.gd`
+  checks the shape, monotonicity, completion, and timing.
 - `scripts/build_model.py` — the wiper seals (SF3): two lip rings on the piston
   perimeter filling the 3 mm gap, verified to touch the bore and hug the piston
   (~0 overlap). `scripts/actuator_sizing.py` budgets their drag: 2 lips × ~4 m
@@ -126,8 +133,9 @@ performance-level (PL) claim.
   Exported to both twins as `WiperSeals.obj`, riding with the piston.
 
 Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,
-H2 gap-fill *geometry* by SF3 (compliance TBV). Unaddressed: H4 (mouth height),
-H7 (manual release/SF4).
+H2 gap-fill *geometry* by SF3 (compliance TBV), H5/H8 further eased by SF5 (warning +
+slow final approach). H7 has a design decision (SF4/ADR-0009). Unaddressed: H4 (mouth
+height, facility-level).
 
 ## Open items
 - **SF1 real sensing:** the voting *logic* exists in sim, but the physical sensor

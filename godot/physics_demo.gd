@@ -32,6 +32,8 @@ var spawned: Array[Node] = []
 var person: Node3D = null
 var title_label: Label
 var status_label: Label
+var beacon: MeshInstance3D            ## SF5 signalling light
+var beacon_mat: StandardMaterial3D
 
 var scenarios := [
 	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0,  "person": false, "intrude": false},
@@ -153,6 +155,18 @@ func _build_world() -> void:
 	# Exterior floor just outside/below the mouth to catch ejected items.
 	_static_box(Vector3(3.2, 0.2, 2.6), Vector3(mouth_x - 1.4, floor_y - 0.5, 0.0),
 		_mat(Color(0.16, 0.17, 0.20)))
+
+	# SF5 signalling beacon above the mouth: warns before + during motion.
+	var bm := SphereMesh.new()
+	bm.radius = 0.12
+	bm.height = 0.24
+	beacon = MeshInstance3D.new()
+	beacon.mesh = bm
+	beacon_mat = StandardMaterial3D.new()
+	beacon_mat.emission_enabled = true
+	beacon.material_override = beacon_mat
+	beacon.position = Vector3(mouth_x - 0.25, 0.95, 0.0)
+	add_child(beacon)
 
 	# Lights + environment.
 	var sun := DirectionalLight3D.new()
@@ -334,10 +348,29 @@ func _physics_process(delta: float) -> void:
 	if il.state == SafetyInterlock.State.CLEARING or il.state == SafetyInterlock.State.REDEPLOY:
 		saw_motion = true
 	_place_piston()
+	_update_beacon()
 	_update_hud()
 
 	if _scenario_done() and scn_time > 2.0:
 		_start_scenario((scn + 1) % scenarios.size())
+
+
+func _update_beacon() -> void:
+	# SF5: green idle, amber warning (about to move / blocked), red while moving.
+	var lvl := il.signal_level()
+	var col := Color(0.2, 0.6, 0.25)
+	var rate := 0.0
+	if lvl == SafetyInterlock.SignalLevel.WARN:
+		col = Color(1.0, 0.7, 0.1); rate = 2.5
+	elif lvl == SafetyInterlock.SignalLevel.MOVING:
+		col = Color(1.0, 0.3, 0.1); rate = 7.0
+	var energy := 0.35
+	if rate > 0.0:
+		var t := Time.get_ticks_msec() / 1000.0
+		energy = 0.6 + 2.4 * (0.5 + 0.5 * sin(t * rate * TAU))   # blink
+	beacon_mat.albedo_color = col
+	beacon_mat.emission = col
+	beacon_mat.emission_energy_multiplier = energy
 
 
 func _update_hud() -> void:
@@ -355,7 +388,8 @@ func _update_hud() -> void:
 	title_label.add_theme_color_override("font_color",
 		Color(1, 0.5, 0.45) if (life or over) else Color(0.6, 1, 0.7))
 	var force_note := "  !! OVER LIMIT -> STOP & REVERSE" if over else ""
-	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s" % [
+	var sig = ["OFF", "WARN", "MOVING"][il.signal_level()]
+	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s\nSF5 signal: %s" % [
 		names[il.state], ("DETECTED" if life else "clear"), int(round(il.progress * 100.0)),
-		int(round(drive_load)), int(SAFE_CONTACT_N), force_note
+		int(round(drive_load)), int(SAFE_CONTACT_N), force_note, sig
 	]
