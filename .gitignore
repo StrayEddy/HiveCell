@@ -1,0 +1,19 @@
+# FreeCAD
+*.FCStd1
+*.FCBak
+*.FCStd.lock
+
+# Blender
+*.blend1
+*.blend2
+*.blend3
+
+# Godot
+.godot/
+*.import
+
+# OS / editor
+.DS_Store
+*~
+.idea/
+.vscode/
