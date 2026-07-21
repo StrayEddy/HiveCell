@@ -157,12 +157,13 @@ func _build_world() -> void:
 	world.environment = env
 	add_child(world)
 
-	# Near top-down camera looking into the bore (shell is see-through). +X (bore
-	# depth) reads left->right; -Z is screen-up since we look near-straight-down.
+	# Mostly-front 3/4 view (shell is see-through): looking broadside along +Z,
+	# tilted ~20 deg from the top and ~23 deg from the side, offset toward the
+	# mouth so the ejection zone sits in the foreground.
 	var cam := Camera3D.new()
-	cam.position = Vector3(1.0, 5.4, 0.7)
+	cam.position = Vector3(-0.7, 1.5, 4.2)
 	add_child(cam)
-	cam.look_at(Vector3(1.0, floor_y, -0.05), Vector3(0, 0, -1))
+	cam.look_at(Vector3(1.1, -0.05, 0.0), Vector3.UP)
 	cam.current = true
 
 	var canvas := CanvasLayer.new()
