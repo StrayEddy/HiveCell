@@ -34,6 +34,53 @@ body length (~2.1 m target, TBD in M1); installation depth ~4 m front-to-back
 
 ---
 
+## ADR-0002 — Authoring workflow: code-first FreeCAD scripting
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision.** The model is authored as git-tracked Python (`scripts/build_model.py`)
+run headless via `freecadcmd` (FreeCAD Flatpak). The Python is the source of truth;
+`cad/HiveCell.FCStd` is a generated build artifact. The FreeCAD GUI is used only to
+view/measure, never to hand-edit geometry (edits would be overwritten on regenerate).
+
+**Why.** User is an experienced software engineer who wanted to move fast and keep
+the design in code/version control. FreeCAD's Python API gives full parametric
+control (sketches, constraints, pads, spreadsheet) while retaining manufacturing-
+grade BREP output, STEP export, the free GUI viewer, and an early motion-preview
+path. Beats manual clicking (speed) and OpenSCAD (mesh/CSG, weak STEP).
+
+**Rejected alternatives.**
+- Manual GUI modeling: too slow; not diffable.
+- CadQuery/build123d: elegant pure-Python BREP, but blocked on this machine by
+  Python 3.14 (no OpenCASCADE wheels yet); would need a separate 3.12 env + a viewer
+  add-on, and has no motion preview. Revisit later if desired.
+- OpenSCAD: not installed; CSG/mesh, poor STEP export -- unfit for "manufacturable".
+
+**Regenerate command.**
+`flatpak run --command=freecadcmd org.freecad.FreeCAD scripts/build_model.py`
+
+---
+
+## ADR-0003 — Cross-section: rounded rectangle (capsule), not a cylinder
+**Date:** 2026-07-21
+**Status:** Accepted (amends the "cylindrical bore" note in ADR-0001)
+
+**Decision.** The living space is a rounded-rectangular capsule (Japanese
+capsule-hotel style): a box extruded along +X whose four long edges are rounded
+(`cornerRadius`). Ends are flat. The flat back face is the piston that pushes
+in/out and seals flush with the exterior wall; the front face is the entry opening.
+
+**Why.** User requirement: a capsule pod is more usable and recognizable than a
+round tube, while a flat floor (`floorWidth = cavityWidth - 2*cornerRadius`) gives a
+real lying surface. Rounded corners preserve the hygiene/vandal-resistance rationale
+(no sharp internal corners); a flat back is required so the piston can seal flush.
+
+**Parameter change.** Replaced `boreDiameter` with `cavityWidth` (1000), reused
+`interiorHeight` (950) as capsule height, added `cornerRadius` (125). `floorWidth`
+is now derived and checked to exceed `shoulderP95`.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
