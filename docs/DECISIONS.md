@@ -468,6 +468,54 @@ dossier.
 
 ---
 
+## ADR-0013 — Sitting-height mouth: accept single-layer fall protection (H4)
+**Date:** 2026-07-22
+**Status:** Accepted (risk acceptance — needs a named sign-off at commissioning)
+
+**Context.** H4 = fall from an elevated mouth. The prior siting rule was "mouth at floor
+level, or guard it", so a person swept toward the mouth in an SF1 fault cannot also
+fall. But a floor-level sill lets ejected inanimate items pile right at the opening
+(bad for the clearing function + hygiene). A sitting-height sill (~450–500 mm) makes
+ejected items fall *clear*, and suits sit-and-swing entry.
+
+**Decision.** Set the mouth sill at ~sitting height (~450–500 mm). Accept that this
+removes the floor-level fall protection: H4 fall protection now rests SOLELY on SF1
+(never move while occupied) — a deliberate single-layer choice for this one hazard.
+
+**Why accepted.**
+- SF1 is diverse-redundant, fail-safe, PL e (ADR-0012) with the independent SF2 contact
+  backstop, so a push-out needs several independent failures (low probability).
+- The residual fall is low — ~450–500 mm, roughly a high step, not a fall from height
+  (H4 is S3, not S4).
+- Real function benefit: items fall clear instead of jamming the sill; better hygiene;
+  natural entry.
+- Physical reality: any edge debris falls off, a limp person could fall off too — a
+  floor-level sill was the only way to get BOTH object-clearing and no drop. We chose
+  object-clearing.
+
+**Rejected alternatives.**
+- Floor-level sill + walkable grated recess / catch tray: keeps the H4 layer AND
+  object-clearing (debris drops through a grate; a person is supported). The safer
+  option; not chosen, in favour of the simpler sitting-height opening.
+- Sitting sill + same-level guarded landing + person-excluding grate: preserves the
+  layer but more complex; not chosen.
+
+**Accepted costs / constraints (bounds on the trade).**
+- Fall protection is now SINGLE-LAYER (SF1) — a conscious exception to the project's
+  "never the sole defense" principle, logged not overlooked.
+- The accepted drop is ~500 mm ONLY: do not stack cells so a mouth opens over a real
+  drop; upper tiers still need a same-level access gallery.
+- Require a forgiving, non-slip drop-zone + collection tray below/in front of the mouth.
+- Needs a NAMED risk-acceptance sign-off at commissioning; confirm sill height +
+  drop-zone against local building code.
+- Validate the ~500 mm residual against human-factors data for a NON-REACTING person (a
+  limp fall differs from a stumble) — the one soft number in this trade.
+
+**Follow-ups.** SAFETY.md Siting rules + H4 row carry this; obtain the sign-off; HF check
+on the limp-fall residual.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface

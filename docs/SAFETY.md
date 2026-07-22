@@ -143,7 +143,7 @@ is an accepted single-layer trade (SF1 is the fall defense), see Siting rules.
 ## Siting rules (facility-level, H4)
 Install constraints on the operator/installer, not device functions.
 
-**Mouth at sitting height (design decision).** The opening sill is set at ~sitting
+**Mouth at sitting height (design decision, ADR-0013).** The opening sill is set at ~sitting
 height (~450–500 mm) so ejected inanimate items fall *clear* of the opening instead of
 piling at the sill (clearing + hygiene), and for natural sit-and-swing entry.
 
@@ -182,8 +182,8 @@ device cannot enforce it. The risk acceptance should carry a named sign-off.
   Seal drag is the master lever (couples SF3/SF4/actuator; `seal_drag.py` range
   ~16-700 N/m) — MEASURE it on a real sample (dry, with grit); it gates the SF4 spring,
   the actuator, and whether ADR-0010's drive complexity is warranted.
-- **H4 mouth height / siting:** sitting-height sill decided — accepted single-layer
-  trade (SF1 is the sole fall defense; ~500 mm residual). To do: confirm the sill height
+- **H4 mouth height / siting (ADR-0013):** sitting-height sill decided — accepted
+  single-layer trade (SF1 is the sole fall defense; ~500 mm residual). To do: confirm the sill height
   + forgiving drop-zone against local code, obtain a named risk-acceptance sign-off, and
   add a commissioning acceptance check.
 - **SF4 fail-open drive (ADR-0009):** first-order check (`pin_relief.py`) says passive
