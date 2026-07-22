@@ -48,6 +48,14 @@ manifest = {
     "magazine_front_m": round((sheet.barrelLength.Value + sheet.actuatorGap.Value) / 1000.0, 4),
     "chain_width_m": round(sheet.chainWidth.Value / 1000.0, 4),
     "chain_height_m": round(sheet.chainHeight.Value / 1000.0, 4),
+    # capsule envelope, for siting the cell in a wall in the twin (mouth opening size)
+    "interior_height_m": round(sheet.interiorHeight.Value / 1000.0, 4),
+    "cavity_width_m": round(sheet.cavityWidth.Value / 1000.0, 4),
+    "corner_radius_m": round(sheet.cornerRadius.Value / 1000.0, 4),
+    "wall_thickness_m": round(sheet.wallThickness.Value / 1000.0, 4),
+    # facility-level siting (ADR-0013 / SAFETY.md): mouth sill ~500 mm above ground.
+    # Not a CAD dimension -- an install spec the twin renders (ground + wall context).
+    "sill_height_m": 0.5,
     "retract_seconds_real": 600,     # ~10 min real-world retraction
     "moving_parts": ["Piston", "WiperSeals"],  # seals ride with the piston; + procedural ChainColumn
     "parts": PARTS,

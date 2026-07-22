@@ -6,6 +6,11 @@
   "magazine_front_m": 2.56,
   "chain_width_m": 0.06,
   "chain_height_m": 0.06,
+  "interior_height_m": 1.1,
+  "cavity_width_m": 1.0,
+  "corner_radius_m": 0.125,
+  "wall_thickness_m": 0.006,
+  "sill_height_m": 0.5,
   "retract_seconds_real": 600,
   "moving_parts": [
     "Piston",

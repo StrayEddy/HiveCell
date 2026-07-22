@@ -33,6 +33,15 @@ var magazine_front := 2.56         ## meters, fixed chain magazine mouth
 var chain_w := 0.06                ## meters (Y)
 var chain_h := 0.06                ## meters (Z)
 
+## Capsule envelope + siting (from manifest). The cell is set into a wall with its
+## mouth sill ~500 mm above ground (ADR-0013 / SAFETY.md siting rules): ejected
+## inanimate items fall clear, and it suits sit-and-swing entry.
+var interior_height := 1.1         ## meters (Y), cavity crown-to-floor
+var cavity_width := 1.0            ## meters (Z), interior width
+var wall_thickness := 0.006        ## meters, barrel shell -> mouth opening size
+var sill_height := 0.5             ## meters, mouth sill above ground (siting spec)
+
+var cell: Node3D                    ## parent for the capsule assembly, lifted to the sill
 var piston: MeshInstance3D
 var seals: MeshInstance3D           ## SF3 wiper lip rings (ride with the piston)
 var column: MeshInstance3D          ## rigid-chain exposed column (procedural)
@@ -70,6 +79,10 @@ func _load_manifest() -> void:
 		magazine_front = float(data.get("magazine_front_m", magazine_front))
 		chain_w = float(data.get("chain_width_m", chain_w))
 		chain_h = float(data.get("chain_height_m", chain_h))
+		interior_height = float(data.get("interior_height_m", interior_height))
+		cavity_width = float(data.get("cavity_width_m", cavity_width))
+		wall_thickness = float(data.get("wall_thickness_m", wall_thickness))
+		sill_height = float(data.get("sill_height_m", sill_height))
 
 
 func _metal(color: Color, alpha := 1.0) -> StandardMaterial3D:
@@ -87,11 +100,21 @@ func _add_part(part_name: String, mat: StandardMaterial3D) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = load(MODELS + part_name + ".obj")
 	mi.material_override = mat
-	add_child(mi)
+	cell.add_child(mi)   # capsule parts live under `cell` (lifted to the sill)
 	return mi
 
 
 func _build_scene() -> void:
+	# The whole capsule assembly hangs off `cell`, lifted so the interior floor sits
+	# `sill_height` above the ground (mouth at ~500 mm -- ADR-0013). Model Y is the
+	# cavity CENTRE, so lift by sill + interior_height/2. World Y=0 is the ground.
+	cell = Node3D.new()
+	cell.position.y = sill_height + interior_height * 0.5
+	add_child(cell)
+
+	_build_ground()   # forgiving surface below the mouth (siting rule)
+	_build_wall()      # the cell is set INTO a wall; mouth flush at X=0
+
 	# Barrel semi-transparent so you can watch the piston inside; piston solid.
 	_add_part("CapsuleShell", _metal(Color(0.70, 0.75, 0.80), 0.22))
 	piston = _add_part("Piston", _metal(Color(0.85, 0.87, 0.90), 1.0))
@@ -109,7 +132,7 @@ func _build_scene() -> void:
 	column = MeshInstance3D.new()
 	column.mesh = column_mesh
 	column.material_override = _metal(Color(0.55, 0.57, 0.60), 1.0)
-	add_child(column)
+	cell.add_child(column)
 
 	# The left-behind bag: a small soft item that rides out ahead of the piston
 	# face during a clearing sweep. Purely a demo prop for the inanimate case.
@@ -121,11 +144,12 @@ func _build_scene() -> void:
 	bag_mat.albedo_color = Color(0.55, 0.40, 0.20)
 	bag_mat.roughness = 0.9
 	bag.material_override = bag_mat
-	add_child(bag)
+	cell.add_child(bag)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -35, 0)
 	sun.light_energy = 1.2
+	sun.shadow_enabled = true   # cast shadows so the ~500 mm elevation reads clearly
 	add_child(sun)
 
 	var world := WorldEnvironment.new()
@@ -139,9 +163,12 @@ func _build_scene() -> void:
 	add_child(world)
 
 	var mid := install_depth * 0.5          # middle of the full assembly
-	var center := Vector3(mid, 0.0, 0.0)
+	var eye_h := sill_height + interior_height * 0.5   # cell centre height
+	# 3/4 view from the room side (-X) and +Z, elevated: shows the wall face + mouth,
+	# the drop to the ground below, and the mechanism through the transparent shell.
+	var center := Vector3(mid * 0.9, eye_h - 0.2, 0.0)
 	var cam := Camera3D.new()
-	cam.position = Vector3(mid, 1.7, 4.6)
+	cam.position = Vector3(-0.9, eye_h + 2.0, 6.1)
 	add_child(cam)
 	cam.look_at(center, Vector3.UP)
 	cam.current = true
@@ -152,6 +179,62 @@ func _build_scene() -> void:
 	label.position = Vector2(16, 12)
 	label.add_theme_font_size_override("font_size", 20)
 	canvas.add_child(label)
+
+
+func _add_box(size: Vector3, center: Vector3, mat: StandardMaterial3D) -> void:
+	# World-fixed box (ground/wall context); NOT under `cell`, so it stays put.
+	var bm := BoxMesh.new()
+	bm.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = center
+	add_child(mi)
+
+
+func _build_ground() -> void:
+	# Forgiving surface below the mouth (SAFETY.md siting rule): the accepted H4 drop
+	# is only the ~500 mm sill, onto a non-slip, clear, forgiving floor. World Y=0.
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.18, 0.20, 0.19)
+	mat.roughness = 1.0
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(16, 16)
+	var mi := MeshInstance3D.new()
+	mi.mesh = plane
+	mi.material_override = mat
+	mi.position = Vector3(install_depth * 0.5, 0.0, 0.0)
+	add_child(mi)
+
+
+func _build_wall() -> void:
+	# The cell is set INTO a wall: a facade at the mouth plane (X=0) with a rectangular
+	# opening framing the barrel, the mouth sill `sill_height` above the ground. Built
+	# as a 4-bar picture frame (bottom spandrel + head + two jambs) -- no CSG needed.
+	var t := wall_thickness
+	var reveal := 0.02                              # gap so the barrel clears the frame
+	var ob := sill_height - t - reveal              # opening bottom (barrel outer + reveal)
+	var ot := sill_height + interior_height + t + reveal  # opening top
+	var ohw := cavity_width * 0.5 + t + reveal      # opening half-width (Z)
+	var whw := ohw + 2.4                            # wall half-span (Z) -> reads as a wall
+	var wtop := ot + 1.4                            # wall top (Y)
+	var fd := 0.25                                   # facade depth along X (X in [0, fd])
+	var cx := fd * 0.5
+
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.34, 0.35, 0.37)      # matte architectural concrete
+	mat.roughness = 0.95
+	mat.metallic = 0.0
+
+	# bottom spandrel (ground -> sill): this is the ~500 mm wall under the mouth
+	_add_box(Vector3(fd, ob, 2.0 * whw), Vector3(cx, ob * 0.5, 0.0), mat)
+	# head (above the opening)
+	_add_box(Vector3(fd, wtop - ot, 2.0 * whw), Vector3(cx, (ot + wtop) * 0.5, 0.0), mat)
+	# jambs (either side of the opening)
+	var jamb_h := ot - ob
+	var jamb_w := whw - ohw
+	_add_box(Vector3(fd, jamb_h, jamb_w), Vector3(cx, (ob + ot) * 0.5, -(ohw + whw) * 0.5), mat)
+	_add_box(Vector3(fd, jamb_h, jamb_w), Vector3(cx, (ob + ot) * 0.5, (ohw + whw) * 0.5), mat)
 
 
 func _input(event: InputEvent) -> void:
