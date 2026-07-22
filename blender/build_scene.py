@@ -223,32 +223,37 @@ focus.location = (1.35, 0.0, (floor_z + zmax) * 0.5)
 
 # --- render settings ---------------------------------------------------------
 sc = bpy.context.scene
-sc.render.engine = "CYCLES"
-# Use the GPU (OptiX/CUDA) if the Flatpak can reach it; fall back to CPU cleanly.
+# EEVEE (fast, works great for interactive shading-view tweaking) -- the .blend
+# opens ready to work in EEVEE every time. Engine id varies by Blender version.
+engines = sc.render.bl_rna.properties["engine"].enum_items.keys()
+EEVEE = next((e for e in engines if "EEVEE" in e), "BLENDER_EEVEE_NEXT")
+sc.render.engine = EEVEE
+print("render engine:", EEVEE)
+# Raytraced reflections so the stainless still reflects the HDRI in EEVEE.
 try:
-    prefs = bpy.context.preferences.addons["cycles"].preferences
-    for dt in ("OPTIX", "CUDA"):
-        prefs.compute_device_type = dt
-        prefs.refresh_devices()
-        gpus = [d for d in prefs.devices if d.type == dt]
-        if gpus:
-            for d in prefs.devices:
-                d.use = d.type in (dt, "CPU")
-            sc.cycles.device = "GPU"
-            print("render device: GPU", dt, [d.name for d in gpus])
-            break
-    else:
-        print("render device: CPU (no GPU found)")
+    sc.eevee.use_raytracing = True
 except Exception as e:
-    print("render device: CPU (GPU setup failed:", e, ")")
-sc.cycles.samples = 160
-sc.cycles.use_denoising = True
+    print("eevee raytracing unavailable:", e)
+try:
+    sc.eevee.taa_render_samples = 64
+except Exception:
+    pass
 sc.render.resolution_x = 1792
 sc.render.resolution_y = 1008
 sc.render.film_transparent = False
 sc.view_settings.view_transform = "AgX"
 os.makedirs(os.path.dirname(OUT_PREVIEW), exist_ok=True)
 sc.render.filepath = OUT_PREVIEW
+
+# Prefer a shaded viewport every time: set every 3D viewport to Material Preview.
+# (The active-workspace switch needs a real UI, so blender/finalize_shading.py --
+# run in a GUI after this -- makes the Shading tab active and re-saves.)
+for screen in bpy.data.screens:
+    for area in screen.areas:
+        if area.type == "VIEW_3D":
+            for space in area.spaces:
+                if space.type == "VIEW_3D":
+                    space.shading.type = "MATERIAL"
 
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 print("saved", OUT_BLEND)
