@@ -1,0 +1,256 @@
+"""Build the HiveCell full-model Blender scene (investor-grade render base).
+
+Run headless (no window -- Cycles renders to a file):
+  flatpak run org.blender.Blender --background \
+      --python /home/eddy/Projects/HiveCell/blender/build_scene.py
+
+Imports the FreeCAD-exported parts (blender/models/*.obj, meters, Z-up),
+assembles the full model, sets the cell INTO a wall with its mouth sill ~500 mm
+above the ground (ADR-0013 siting), assigns PBR materials, lights it studio-
+style, frames a hero camera, then saves blender/hivecell.blend and renders
+renders/preview.png. Regenerate the meshes first with scripts/export_blender.py.
+
+For photoreal stainless it uses a CC0 studio HDRI at blender/hdri/studio.hdr --
+run scripts/fetch_assets.sh once to download it (else it falls back to a
+procedural gradient world). GPU (OptiX/CUDA) is used if the Flatpak can reach it.
+
+Design lives HERE (materials/lighting/camera) + in the CAD; re-run to rebuild.
+"""
+import bpy
+import json
+import math
+import os
+from mathutils import Vector
+
+ROOT = "/home/eddy/Projects/HiveCell"
+MODELS = os.path.join(ROOT, "blender", "models")
+OUT_BLEND = os.path.join(ROOT, "blender", "hivecell.blend")
+OUT_PREVIEW = os.path.join(ROOT, "renders", "preview.png")
+
+with open(os.path.join(MODELS, "scene.json")) as f:
+    S = json.load(f)
+
+
+# --- helpers -----------------------------------------------------------------
+def pbr(name, base, metallic=0.0, roughness=0.5, anisotropic=0.0, alpha=1.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*base, 1.0)
+    b.inputs["Metallic"].default_value = metallic
+    b.inputs["Roughness"].default_value = roughness
+    if "Anisotropic" in b.inputs:
+        b.inputs["Anisotropic"].default_value = anisotropic
+    if alpha < 1.0:
+        b.inputs["Alpha"].default_value = alpha
+        m.blend_method = "BLEND"
+    return m
+
+
+def brushed(mat, rough_lo, rough_hi, scale=520.0):
+    """Fake a brushed-metal finish: fine bands drive a tight roughness variation
+    (along X, the barrel's length), for a directional satin sheen under the HDRI."""
+    nt = mat.node_tree
+    b = nt.nodes["Principled BSDF"]
+    tex = nt.nodes.new("ShaderNodeTexCoord")
+    wave = nt.nodes.new("ShaderNodeTexWave")
+    wave.wave_type = "BANDS"
+    wave.bands_direction = "X"
+    wave.inputs["Scale"].default_value = scale
+    wave.inputs["Distortion"].default_value = 1.5
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (rough_lo, rough_lo, rough_lo, 1.0)
+    ramp.color_ramp.elements[1].color = (rough_hi, rough_hi, rough_hi, 1.0)
+    nt.links.new(tex.outputs["Object"], wave.inputs["Vector"])
+    nt.links.new(wave.outputs["Color"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], b.inputs["Roughness"])
+    return mat
+
+
+def box(name, size, center, mat):
+    bpy.ops.mesh.primitive_cube_add(size=2.0, location=center)  # unit cube -1..1
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = (size[0] / 2.0, size[1] / 2.0, size[2] / 2.0)
+    bpy.ops.object.transform_apply(scale=True)
+    o.data.materials.append(mat)
+    return o
+
+
+def import_part(part, mat):
+    bpy.ops.wm.obj_import(filepath=os.path.join(MODELS, part + ".obj"),
+                          up_axis="Z", forward_axis="Y")
+    objs = list(bpy.context.selected_objects)
+    for o in objs:
+        o.name = part
+        o.data.materials.clear()
+        o.data.materials.append(mat)
+        # smooth shading so the rounded corners read as curved, not faceted
+        for p in o.data.polygons:
+            p.use_smooth = True
+    return objs
+
+
+# --- clean slate -------------------------------------------------------------
+bpy.ops.wm.read_factory_settings(use_empty=True)
+
+# --- materials ---------------------------------------------------------------
+mat_steel = brushed(pbr("Steel", (0.64, 0.66, 0.69), metallic=1.0, anisotropic=0.3), 0.18, 0.30)
+mat_piston = brushed(pbr("PistonSteel", (0.80, 0.82, 0.85), metallic=1.0, anisotropic=0.4), 0.14, 0.24)
+mat_seal = pbr("Seal", (0.05, 0.05, 0.06), metallic=0.0, roughness=0.85)
+mat_mag = pbr("Magazine", (0.22, 0.23, 0.26), metallic=1.0, roughness=0.45)
+mat_chain = pbr("Chain", (0.45, 0.47, 0.50), metallic=1.0, roughness=0.35)
+mat_wall = pbr("Wall", (0.40, 0.40, 0.42), metallic=0.0, roughness=0.85)
+mat_floor = pbr("Floor", (0.16, 0.17, 0.18), metallic=0.0, roughness=0.95)
+
+PART_MAT = {
+    "CapsuleShell": mat_steel, "Piston": mat_piston, "WiperSeals": mat_seal,
+    "ChainMagazine": mat_mag, "ChainColumn": mat_chain,
+}
+
+# --- import the full model ---------------------------------------------------
+imported = {}
+for part in S["parts"]:
+    imported[part] = import_part(part, PART_MAT[part])
+
+shell = bpy.data.objects["CapsuleShell"]
+bb = [shell.matrix_world @ Vector(c) for c in shell.bound_box]
+zmin = min(v.z for v in bb)
+zmax = max(v.z for v in bb)
+ymin = min(v.y for v in bb)
+ymax = max(v.y for v in bb)
+xmin = min(v.x for v in bb)
+print("SHELL bbox  X[%.3f]  Y[%.3f,%.3f]  Z[%.3f,%.3f]" % (xmin, ymin, ymax, zmin, zmax))
+
+t = S["wall_thickness_m"]
+sill = S["sill_height_m"]
+floor_z = (zmin + t) - sill            # interior floor is sill above the ground
+
+# --- ground + wall the cell is set into --------------------------------------
+box("Ground", (16.0, 12.0, 0.2), (1.2, 0.0, floor_z - 0.1), mat_floor)
+
+reveal = 0.03
+ob = zmin - reveal                      # opening bottom (barrel outer)
+ot = zmax + reveal                      # opening top
+ohw = (ymax - ymin) * 0.5 + reveal      # opening half-width (Y)
+whw = ohw + 1.6                         # wall half-span (Y) -- a wall segment, not a plane
+wtop = ot + 1.0                         # wall top (Z)
+fd = 0.25                               # facade depth (X in [mouth, +fd])
+cx = S["mouth_x_m"] + fd * 0.5
+box("Wall_spandrel", (fd, 2 * whw, ob - floor_z), (cx, 0.0, (floor_z + ob) * 0.5), mat_wall)
+box("Wall_head", (fd, 2 * whw, wtop - ot), (cx, 0.0, (ot + wtop) * 0.5), mat_wall)
+box("Wall_jambL", (fd, whw - ohw, ot - ob), (cx, -(ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
+box("Wall_jambR", (fd, whw - ohw, ot - ob), (cx, (ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
+
+# --- lighting (studio 3-point + soft world) ----------------------------------
+world = bpy.data.worlds.new("W")
+world.use_nodes = True
+wn = world.node_tree
+bg = wn.nodes["Background"]
+HDRI = os.path.join(ROOT, "blender", "hdri", "studio.hdr")
+if os.path.exists(HDRI):
+    # Real studio HDRI: gives the stainless proper softbox reflections + fill.
+    env = wn.nodes.new("ShaderNodeTexEnvironment")
+    env.image = bpy.data.images.load(HDRI)
+    mapp = wn.nodes.new("ShaderNodeMapping")
+    tex = wn.nodes.new("ShaderNodeTexCoord")
+    mapp.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(110))  # aim softboxes
+    wn.links.new(tex.outputs["Generated"], mapp.inputs["Vector"])
+    wn.links.new(mapp.outputs["Vector"], env.inputs["Vector"])
+    # Show the HDRI only to reflection/lighting rays; give the CAMERA a clean neutral
+    # backdrop (a busy studio photo behind the product looks unprofessional).
+    lp = wn.nodes.new("ShaderNodeLightPath")
+    mix = wn.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.inputs[7].default_value = (0.72, 0.74, 0.78, 1.0)   # B: camera backdrop
+    wn.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+    wn.links.new(env.outputs["Color"], mix.inputs[6])       # A: HDRI (reflections/light)
+    wn.links.new(mix.outputs[2], bg.inputs[0])
+    bg.inputs[1].default_value = 1.0
+    print("world: HDRI", HDRI)
+else:
+    # Fallback: neutral studio gradient (brighter top, darker floor).
+    grad = wn.nodes.new("ShaderNodeTexGradient")
+    ramp = wn.nodes.new("ShaderNodeValToRGB")
+    tex = wn.nodes.new("ShaderNodeTexCoord")
+    mapp = wn.nodes.new("ShaderNodeMapping")
+    mapp.inputs["Rotation"].default_value = (math.radians(90), 0, 0)
+    wn.links.new(tex.outputs["Generated"], mapp.inputs["Vector"])
+    wn.links.new(mapp.outputs["Vector"], grad.inputs["Vector"])
+    wn.links.new(grad.outputs["Color"], ramp.inputs["Fac"])
+    ramp.color_ramp.elements[0].color = (0.10, 0.11, 0.13, 1.0)
+    ramp.color_ramp.elements[1].color = (0.55, 0.58, 0.62, 1.0)
+    wn.links.new(ramp.outputs["Color"], bg.inputs[0])
+    bg.inputs[1].default_value = 1.2
+    print("world: gradient fallback (no HDRI)")
+bpy.context.scene.world = world
+
+
+def area_light(name, loc, energy, size, target):
+    bpy.ops.object.light_add(type="AREA", location=loc)
+    o = bpy.context.active_object
+    o.name = name
+    o.data.energy = energy
+    o.data.size = size
+    c = o.constraints.new("TRACK_TO")
+    c.target = target
+    return o
+
+
+focus = bpy.data.objects.new("Focus", None)          # aim point for lights + cam
+bpy.context.collection.objects.link(focus)
+focus.location = (1.0, 0.0, (floor_z + zmax) * 0.5)
+
+# HDRI provides the ambient fill + reflections; add just a sun for a crisp
+# grounding shadow and one soft key to shape the barrel.
+bpy.ops.object.light_add(type="SUN")
+sun = bpy.context.active_object
+sun.data.energy = 1.1
+sun.data.angle = math.radians(3.0)
+sun.rotation_euler = (math.radians(58), 0.0, math.radians(40))
+
+area_light("Key", (-3.0, -4.0, 3.5), 250.0, 4.0, focus)
+
+# --- hero camera: broadside 3/4 showing the whole assembly, wall at the mouth,
+# barrel -> chain -> magazine receding, all elevated above the ground ---------
+bpy.ops.object.camera_add(location=(-1.2, -8.5, 2.6))
+cam = bpy.context.active_object
+cam.data.lens = 45
+c = cam.constraints.new("TRACK_TO")
+c.target = focus
+bpy.context.scene.camera = cam
+focus.location = (1.35, 0.0, (floor_z + zmax) * 0.5)
+
+# --- render settings ---------------------------------------------------------
+sc = bpy.context.scene
+sc.render.engine = "CYCLES"
+# Use the GPU (OptiX/CUDA) if the Flatpak can reach it; fall back to CPU cleanly.
+try:
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for dt in ("OPTIX", "CUDA"):
+        prefs.compute_device_type = dt
+        prefs.refresh_devices()
+        gpus = [d for d in prefs.devices if d.type == dt]
+        if gpus:
+            for d in prefs.devices:
+                d.use = d.type in (dt, "CPU")
+            sc.cycles.device = "GPU"
+            print("render device: GPU", dt, [d.name for d in gpus])
+            break
+    else:
+        print("render device: CPU (no GPU found)")
+except Exception as e:
+    print("render device: CPU (GPU setup failed:", e, ")")
+sc.cycles.samples = 160
+sc.cycles.use_denoising = True
+sc.render.resolution_x = 1792
+sc.render.resolution_y = 1008
+sc.render.film_transparent = False
+sc.view_settings.view_transform = "AgX"
+os.makedirs(os.path.dirname(OUT_PREVIEW), exist_ok=True)
+sc.render.filepath = OUT_PREVIEW
+
+bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
+print("saved", OUT_BLEND)
+bpy.ops.render.render(write_still=True)
+print("rendered", OUT_PREVIEW)

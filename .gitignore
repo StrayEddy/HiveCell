@@ -21,3 +21,10 @@ __pycache__/
 *~
 .idea/
 .vscode/
+
+# Blender render pipeline: commit the scripts (source of truth), ignore the
+# regenerable/downloaded artifacts.
+/renders/
+/blender/hivecell.blend
+/blender/models/
+/blender/hdri/
