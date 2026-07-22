@@ -28,10 +28,10 @@ Current state — **design + simulation / first-order analysis, no certified har
 
 | Safety function | Status |
 |-----------------|--------|
-| SF1 Occupancy detection (primary) | fail-safe voting logic in the twin + self-test — `[sim]` |
+| SF1 Occupancy detection (primary) | fail-safe voting logic + self-test; architecture decided — diverse-redundant suite (radar vitals + thermal + CO₂ + load/BCG), target ISO 13849 PL e (ADR-0012) — `[sim]` |
 | SF2 Contact-force reaction (safety edge) | independent force-cap trip in the twin + self-test — `[sim]` |
 | SF3 Gap-filling wiper seal | CAD geometry + drag budget; low friction now required (ADR-0011) — `[cad]` |
-| SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch (ADR-0009) — `[decision]` |
+| SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch + ~1.5 kN return spring (ADR-0009; required per the pin-relief check) — `[decision]` |
 | SF5 Motion signalling + soft profile | soft velocity profile + signalling (green ready / red moving / orange closed / flashing-red alarm) in the twin + self-test — `[sim]` |
 
 The SF1+SF2 interlock is a shared, headless-testable state machine; its core invariant
@@ -40,9 +40,19 @@ that gates every push (see Setup). The design principle is PREVENT (never move w
 occupied) → REACT (stop & reverse on contact) → fail safe; "push the occupant out" is
 not a mode the machine can enter.
 
+**Notable decisions** (full rationale in `docs/DECISIONS.md`): the fail-open + return-spring
+requirements challenge the original rigid-chain actuator, so the **drive architecture is
+under review** (ADR-0010, *proposed*). H4 (fall from the mouth) is a **documented
+accepted-risk trade** — a sitting-height sill for object-clearing leaves fall protection
+resting on SF1 alone (ADR-0013); recorded transparently, with the safer alternative noted.
+
 **Biggest open risk:** seal drag is the master variable — it couples the seal (SF3), the
 SF4 return spring, and the actuator size, yet is currently only estimated (~16–700 N/m).
 It must be measured on a real seal sample before the force numbers are frozen (ADR-0011).
+
+Everything above is design/simulation and first-order analysis. Real progress from here
+is physical-world validation: bench-measure seal drag, prototype the SF1 radar, and build
+the certification dossiers (ISO 13849 PL e for SF1; force/injury data for SF2).
 
 ## Software stack
 
