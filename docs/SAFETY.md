@@ -137,8 +137,36 @@ performance-level (PL) claim.
 
 Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,
 H2 gap-fill *geometry* by SF3 (compliance TBV), H5/H8 further eased by SF5 (warning +
-slow final approach). H7 has a design decision (SF4/ADR-0009). Unaddressed: H4 (mouth
-height, facility-level).
+slow final approach). H7 has a design decision (SF4/ADR-0009); H4 by the Siting rules
+below (facility-level).
+
+## Siting rules (facility-level, H4)
+These are INSTALL constraints on the operator/installer, not device functions. They
+mitigate H4 (fall from an elevated mouth): if SF1 ever fails and a mis-detected
+occupant is swept toward the mouth, or in ordinary entry/exit, there must be no drop to
+fall from. Second layer behind the SF1 occupancy interlock — both are required.
+
+- **Prefer the mouth at floor level.** Install the opening sill flush with (or within a
+  single low step of) the finished walking surface, so anything leaving the mouth — a
+  person, an ejected item — is at ground level with no fall. Ground-row cells default
+  to this.
+- **Elevated mouths must be guarded.** Any cell whose sill sits above the adjacent
+  walking surface must open onto a *same-level* landing / access gallery with guardrails
+  and fall protection per local building code. No open drop in front of a mouth.
+- **Thresholds (confirm against local building / fall-protection code):** a single
+  unguarded step is typically ≤ ~150–200 mm; a guardrail-protected gallery is required
+  above the code's fall-protection height (~600–1000 mm). Treat these as placeholders
+  until the governing code is fixed.
+- **Approach zone:** a clear, non-slip, adequately-wide landing in front of every mouth;
+  no trip hazards or obstructions in the egress path.
+- **Stacked "wall of cells":** upper tiers get a continuous access gallery (walkway +
+  guardrail) — like a capsule-hotel corridor or ship-berth deck — and the mouth opens
+  onto that gallery at gallery level, not over a drop.
+- **Facility signage/lighting:** the mouth edge and any step legible in low light
+  (complements SF5 signalling, which is on the device).
+
+**Responsibility.** The device cannot enforce siting, so this is a documented install
+requirement verified at commissioning (an acceptance check), not a runtime safeguard.
 
 ## Open items
 - **SF1 real sensing (ADR-0012):** architecture decided (diverse-redundant suite,
@@ -154,7 +182,9 @@ height, facility-level).
   Seal drag is the master lever (couples SF3/SF4/actuator; `seal_drag.py` range
   ~16-700 N/m) — MEASURE it on a real sample (dry, with grit); it gates the SF4 spring,
   the actuator, and whether ADR-0010's drive complexity is warranted.
-- Mouth height / site guarding rules (facility-level) — H4.
+- **H4 mouth height / siting:** rules specified (see Siting rules); still to do —
+  fix the unguarded-step + guardrail thresholds against the governing building /
+  fall-protection code, and add a commissioning acceptance check.
 - **SF4 fail-open drive (ADR-0009):** first-order check (`pin_relief.py`) says passive
   relief is insufficient (~1.2 kN residual) → a ~1.5 kN return element is required (or
   a drag-shedding seal); add it to the drive concept and re-run actuator sizing (~2.3x
