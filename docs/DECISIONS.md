@@ -400,6 +400,74 @@ simplify the drive choice.
 
 ---
 
+## ADR-0012 — SF1 occupancy sensing: diverse-redundant, fail-safe, PL e
+**Date:** 2026-07-22
+**Status:** Accepted (architecture + PL target); sensor part numbers + certification TBD
+
+**Context.** SF1 (occupancy detection) is the PRIMARY safeguard -- PREVENT: never move
+while occupied (H1/H6); the whole safety case leans on it. Users are assumed VULNERABLE
+and may NOT self-rescue, so a missed occupant can be fatal. The twin has fail-safe
+*voting logic* (`safety_interlock.gd`) but no physical sensor suite, redundancy
+architecture, or performance level. This ADR fixes those.
+
+**Decision.**
+1. **Target ISO 13849-1 PL e, Category 3-4.** Risk graph: S2 (death) + F2 (occupant
+   present for hours) + P2 (vulnerable, scarcely able to avoid) => PLr = **e**. The
+   safety function "presence detected => motion inhibited" runs on a rated safety
+   controller (dual-channel / safety PLC), not the ordinary control MCU.
+2. **Diverse-redundant sensor suite** (different physics, so no single common-cause
+   failure can blind it):
+   - **A. mmWave / UWB vital-sign radar (primary)** -- respiration + heartbeat
+     micro-motion on a MOTIONLESS person; penetrates clothing / blanket / sleeping bag.
+     Catches the still, cold, covered occupant the others miss (e.g. 60 GHz FMCW).
+   - **B. Thermal IR array** -- body-heat signature/shape. Supportive; weak on a
+     hypothermic occupant, so never sole.
+   - **C. NDIR CO2** -- exhaled-CO2 rise = metabolism. Independent physics,
+     penetration-independent (works under a blanket), slow.
+   - **D. Floor load cells + ballistocardiography** -- static mass = something present;
+     micro weight-shifts from pulse/breathing = alive. Threshold low enough for a small
+     animal.
+   - (Optional E: mouth-plane light-curtain / ToF for external reach-in during motion,
+     H5.)
+3. **Fail-safe voting** (matches the sim reference):
+   - **OR toward life** -- ANY credible presence/life channel => occupied => inhibit.
+   - **AND toward clear** -- motion only when ALL channels agree "empty" for a dwell
+     (covers breath-hold / apnea).
+   - **Fault = occupied** -- any channel faulted, stale, out-of-range, or disagreeing
+     beyond tolerance => occupied. Absence of proof of emptiness is never "empty".
+   - **Diversity for common cause** -- RF + IR + chemical + mechanical fail differently
+     (dust/fog blinds optical but not radar/CO2/load).
+4. **Must catch a small animal, not just an adult** -- radar/CO2/load thresholds tuned
+   down; ambiguity (mass with no life signs) errs to possibly-occupied => hold.
+
+**Why.** No single sensor sees the worst case (motionless, cold, blanketed, maybe a
+small animal). Diverse redundancy + OR-toward-life + fault-is-occupied is the only way
+to reach PL e for a may-not-self-rescue occupant. The sim already encodes the LOGIC;
+this ADR fixes the PHYSICS and the RATING.
+
+**Rejected alternatives.**
+- Single sensor (PIR or a weight mat alone): common-cause blind spots -- a motionless
+  person defeats PIR, a bag fools weight-only. Cannot reach PL e.
+- Camera + vision AI as the primary channel: opaque failure modes, privacy (people
+  sleeping), poor in dark / under a blanket, hard to certify to PL e. At most auxiliary.
+- "Possibly occupied => push out slowly": ruled out project-wide (SAFETY.md).
+
+**Accepted costs / to verify.**
+- Cost/complexity of 4 diverse channels + a rated safety controller -- justified by
+  S4 / PL e.
+- Validate radar vital-sign range/reliability through bedding, multi-occupant and
+  small-animal sensitivity, on real hardware.
+- Sensor placement / field-of-view: no dead zones in the bore; radar EMC in a metal bore.
+- Privacy: prefer non-imaging sensors (radar / CO2 / load / thermal-array) over cameras.
+- Formal PL e verification (category, MTTFd, DC, CCF per ISO 13849-1) once parts chosen.
+- Dwell time vs. apnea / breath-hold: set from clinical data.
+
+**Follow-ups.** Choose sensor part numbers; optionally extend `safety_interlock.gd` with
+per-channel inputs + diagnostics for a higher-fidelity sim; build the PL e verification
+dossier.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -407,9 +475,10 @@ simplify the drive choice.
 2. Motion/actuation: linear actuator, guide rails + carriages, actuator-to-piston
    coupling, mechanical hard stops.
 3. Sealing/hygiene: perimeter wiper seals, floor slope + drain port, splash gaskets.
-4. Sensing/safety/control: position sensors + limit switches, occupancy/obstruction
-   sensors, pressure-sensitive safety edge, external/operator e-stop + passive flush
-   latch (NO interior release, ADR-0009), controller.
+4. Sensing/safety/control: position sensors + limit switches, diverse-redundant
+   occupancy sensors (radar vitals + thermal + CO2 + load/BCG, ADR-0012),
+   pressure-sensitive safety edge, external/operator e-stop + passive flush latch
+   (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
 6. Cleaning subsystem: deferred; reserve mounting bosses and space claim.
 7. User interface: exterior availability indicator, interior grab feature, call button.

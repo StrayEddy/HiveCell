@@ -35,8 +35,9 @@ not started.
 - **SF1 Occupancy detection (primary)** — *[sim: fail-safe voting logic]* redundant +
   diverse sensors (e.g. load/weight in the floor + optical/IR beam + capacitive/radar
   + mmWave/UWB vital-sign radar for a still, cold, blanketed occupant). Fault or
-  "possibly occupied" => no motion. Target a rated performance level (e.g. ISO 13849
-  PL d/e) — TBD on real hardware.
+  "possibly occupied" => no motion. Architecture in **ADR-0012**: diverse-redundant
+  suite (radar vitals + thermal + CO2 + load/BCG), fail-safe voting, target **ISO 13849
+  PL e** — sensor parts + certification TBD.
 - **SF2 Contact reaction** — *[sim: force cap + safety-edge trip]* chain-drive
   current/force monitoring + pressure-sensitive safety edge on the piston face =>
   immediate stop and reverse to deployed. Independent of SF1. The trip is on YIELD,
@@ -140,9 +141,10 @@ slow final approach). H7 has a design decision (SF4/ADR-0009). Unaddressed: H4 (
 height, facility-level).
 
 ## Open items
-- **SF1 real sensing:** the voting *logic* exists in sim, but the physical sensor
-  suite, redundancy architecture, and PL rating do not. Select modalities (must catch
-  a still/cold/blanketed occupant and small animals) and target ISO 13849 PL d/e.
+- **SF1 real sensing (ADR-0012):** architecture decided (diverse-redundant suite,
+  fail-safe voting, PL e). Still to do: choose sensor part numbers; validate radar
+  vital-sign detection through bedding + small-animal sensitivity on real hardware;
+  build the ISO 13849 PL e verification dossier (category, MTTFd, DC, CCF).
 - **SF2 real force limit:** sim shows a force-limited drive with a cap below the door
   limit is a viable backstop (discriminates yield vs magnitude). Real cap must come
   from injury data + the drive's *actual* force-limitability; SF1 remains primary
