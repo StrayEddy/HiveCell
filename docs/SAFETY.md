@@ -21,7 +21,7 @@ Risk = Severity (1-4) x Likelihood (1-4). Severity 4 = permanent injury/death.
 | H1 | Push-out / crush of a non-reacting occupant | Retraction starts with an unconscious/intoxicated person inside | 4 | 3 | 12 | Redundant occupancy detection; never retract if occupied; abort + alarm |
 | H2 | Shear / draw-in at piston-bore gap | Hair, fingers, skin, clothing caught at the sweeping 3 mm edge | 4 | 3 | 12 | Fill gap with compliant wiper/brush (no open moving gap); occupancy interlock |
 | H3 | Crush by force | Slow piston pins a limb/torso against opening frame or bracing | 4 | 2 | 8 | Force/current limit + pressure-sensitive safety edge on piston face -> stop & reverse |
-| H4 | Fall from an elevated mouth | Occupant pushed out of a mouth above floor level | 3 | 2 | 6 | Site rule: mouth at floor level, or guarding; occupancy interlock upstream |
+| H4 | Fall from an elevated mouth | Occupant pushed out of a mouth above floor level | 3 | 2 | 6 | SF1 interlock prevents push-out — **sole** fall defense (accepted, see Siting rules); sitting sill ≤ ~500 mm, forgiving surface below; no mouth over a real drop |
 | H5 | Reach-in from outside during motion | Bystander/child reaches into the mouth while moving | 3 | 2 | 6 | External presence sensing at the mouth; safety edge; slow speed |
 | H6 | Moves while occupied (sensor/control fault) | False "empty", stuck sensor, wiring fault | 4 | 2 | 8 | Redundant, diverse sensors; fail-safe (fault -> no motion); rated safety controller |
 | H7 | Trapped under self-locking hold | Someone caught; drive is self-locking, power lost | 4 | 1 | 4 | Fail-open / back-drivable drive: power loss cannot sustain a holding force (passive pin relief). NO occupant-operated release (see FMEA) |
@@ -137,36 +137,36 @@ performance-level (PL) claim.
 
 Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,
 H2 gap-fill *geometry* by SF3 (compliance TBV), H5/H8 further eased by SF5 (warning +
-slow final approach). H7 has a design decision (SF4/ADR-0009); H4 by the Siting rules
-below (facility-level).
+slow final approach). H7 has a design decision (SF4/ADR-0009); H4 — sitting-height sill
+is an accepted single-layer trade (SF1 is the fall defense), see Siting rules.
 
 ## Siting rules (facility-level, H4)
-These are INSTALL constraints on the operator/installer, not device functions. They
-mitigate H4 (fall from an elevated mouth): if SF1 ever fails and a mis-detected
-occupant is swept toward the mouth, or in ordinary entry/exit, there must be no drop to
-fall from. Second layer behind the SF1 occupancy interlock — both are required.
+Install constraints on the operator/installer, not device functions.
 
-- **Prefer the mouth at floor level.** Install the opening sill flush with (or within a
-  single low step of) the finished walking surface, so anything leaving the mouth — a
-  person, an ejected item — is at ground level with no fall. Ground-row cells default
-  to this.
-- **Elevated mouths must be guarded.** Any cell whose sill sits above the adjacent
-  walking surface must open onto a *same-level* landing / access gallery with guardrails
-  and fall protection per local building code. No open drop in front of a mouth.
-- **Thresholds (confirm against local building / fall-protection code):** a single
-  unguarded step is typically ≤ ~150–200 mm; a guardrail-protected gallery is required
-  above the code's fall-protection height (~600–1000 mm). Treat these as placeholders
-  until the governing code is fixed.
-- **Approach zone:** a clear, non-slip, adequately-wide landing in front of every mouth;
-  no trip hazards or obstructions in the egress path.
-- **Stacked "wall of cells":** upper tiers get a continuous access gallery (walkway +
-  guardrail) — like a capsule-hotel corridor or ship-berth deck — and the mouth opens
-  onto that gallery at gallery level, not over a drop.
-- **Facility signage/lighting:** the mouth edge and any step legible in low light
-  (complements SF5 signalling, which is on the device).
+**Mouth at sitting height (design decision).** The opening sill is set at ~sitting
+height (~450–500 mm) so ejected inanimate items fall *clear* of the opening instead of
+piling at the sill (clearing + hygiene), and for natural sit-and-swing entry.
 
-**Responsibility.** The device cannot enforce siting, so this is a documented install
-requirement verified at commissioning (an acceptance check), not a runtime safeguard.
+**Accepted risk trade (H4).** A sitting-height mouth removes the floor-level fall
+protection that would otherwise catch a person swept toward the mouth: *any edge debris
+falls off, a non-reacting person could fall off too.* So fall protection in the H4
+scenario now rests ENTIRELY on SF1 (never move while occupied) — a deliberate
+single-layer choice, a conscious departure from the "never the sole defense" principle
+for this one hazard. Accepted because: (a) SF1 is diverse-redundant, fail-safe, PL e
+(ADR-0012) with the SF2 contact backstop, so a push-out needs several independent
+failures; and (b) the residual fall is low (~450–500 mm, ≈ a high step), not a fall
+from height. Logged here as accepted, not overlooked.
+
+**Still required (bound + soften the residual):**
+- Surface below/in front of the mouth: non-slip, clear, and *forgiving*, so a low fall
+  or a stumble on exit doesn't injure; with a collection zone/tray for ejected items.
+- The accepted drop is ~500 mm only. Do NOT stack cells so a mouth opens over a real
+  drop — upper tiers still need a same-level access gallery (a ~500 mm sill is the
+  accepted trade, not a multi-metre fall).
+- Mouth edge + step-down legible in low light (complements SF5 signalling).
+
+**Responsibility.** Documented install requirement, verified at commissioning; the
+device cannot enforce it. The risk acceptance should carry a named sign-off.
 
 ## Open items
 - **SF1 real sensing (ADR-0012):** architecture decided (diverse-redundant suite,
@@ -182,9 +182,10 @@ requirement verified at commissioning (an acceptance check), not a runtime safeg
   Seal drag is the master lever (couples SF3/SF4/actuator; `seal_drag.py` range
   ~16-700 N/m) — MEASURE it on a real sample (dry, with grit); it gates the SF4 spring,
   the actuator, and whether ADR-0010's drive complexity is warranted.
-- **H4 mouth height / siting:** rules specified (see Siting rules); still to do —
-  fix the unguarded-step + guardrail thresholds against the governing building /
-  fall-protection code, and add a commissioning acceptance check.
+- **H4 mouth height / siting:** sitting-height sill decided — accepted single-layer
+  trade (SF1 is the sole fall defense; ~500 mm residual). To do: confirm the sill height
+  + forgiving drop-zone against local code, obtain a named risk-acceptance sign-off, and
+  add a commissioning acceptance check.
 - **SF4 fail-open drive (ADR-0009):** first-order check (`pin_relief.py`) says passive
   relief is insufficient (~1.2 kN residual) → a ~1.5 kN return element is required (or
   a drag-shedding seal); add it to the drive concept and re-run actuator sizing (~2.3x
