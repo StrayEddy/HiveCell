@@ -27,6 +27,22 @@ var mouth_x := 0.0         ## public opening, shell min-x
 var cavity_x0 := 0.15      ## just inside the mouth
 var cavity_x1 := 2.0       ## just in front of the deployed piston face
 
+## Siting (ADR-0013 / SAFETY.md): the cell is set INTO a wall with its mouth sill
+## ~500 mm above ground, so ejected inanimate items fall CLEAR onto a forgiving
+## surface (they physically drop `sill_height` to the ground here). From manifest.
+var sill_height := 0.5     ## meters, bore floor above ground (mouth sill height)
+var ground_y := -1.0       ## world Y of the ground (= floor_y - sill_height)
+
+## Rigid-chain drive, ported from the old twin: the exposed column spans the
+## (moving) piston rear to the (fixed) magazine mouth; its length is physical
+## (chain coils into the magazine). From manifest.
+var magazine_front := 2.56 ## meters, fixed chain-magazine mouth
+var piston_rear_deployed := 2.5  ## meters, piston rear at the deployed pose
+var chain_w := 0.06        ## meters (Y)
+var chain_h := 0.06        ## meters (Z)
+var column: MeshInstance3D
+var column_mesh: BoxMesh
+
 var piston: AnimatableBody3D
 var spawned: Array[Node] = []
 var person: Node3D = null
@@ -68,6 +84,11 @@ func _load_manifest() -> void:
 	var d = JSON.parse_string(f.get_as_text())
 	if d is Dictionary:
 		stroke = float(d.get("stroke_m", stroke))
+		sill_height = float(d.get("sill_height_m", sill_height))
+		magazine_front = float(d.get("magazine_front_m", magazine_front))
+		piston_rear_deployed = float(d.get("piston_rear_deployed_m", piston_rear_deployed))
+		chain_w = float(d.get("chain_width_m", chain_w))
+		chain_h = float(d.get("chain_height_m", chain_h))
 
 
 # --- helpers -----------------------------------------------------------------
@@ -113,6 +134,7 @@ func _build_world() -> void:
 	half_w = aabb.size.z * 0.5 - wall
 	cavity_x0 = mouth_x + 0.2
 	cavity_x1 = stroke - 0.25  # keep items in front of the deployed piston face
+	ground_y = floor_y - sill_height  # mouth sill ~500 mm above ground (ADR-0013)
 
 	# Shell: static body, concave (trimesh) collision from the real mesh, drawn
 	# semi-transparent so the interior reads from the near top-down camera.
@@ -152,9 +174,22 @@ func _build_world() -> void:
 	add_child(piston)
 	_place_piston()
 
-	# Exterior floor just outside/below the mouth to catch ejected items.
-	_static_box(Vector3(3.2, 0.2, 2.6), Vector3(mouth_x - 1.4, floor_y - 0.5, 0.0),
-		_mat(Color(0.16, 0.17, 0.20)))
+	# Rigid-chain exposed column: links lock straight to push the piston and coil
+	# into the magazine to retract, so its exposed length is physical (not a rod).
+	column_mesh = BoxMesh.new()
+	column_mesh.size = Vector3(0.001, chain_w, chain_h)
+	column = MeshInstance3D.new()
+	column.mesh = column_mesh
+	column.material_override = _mat(Color(0.55, 0.57, 0.60), 0.4, 0.9)
+	add_child(column)
+	_update_chain()
+
+	# Ground: a large forgiving surface `sill_height` below the bore floor, so ejected
+	# items fall CLEAR of the mouth (the H4 siting rationale). Its top is at ground_y.
+	_static_box(Vector3(10.0, 0.2, 8.0), Vector3(stroke * 0.5, ground_y - 0.1, 0.0),
+		_mat(Color(0.17, 0.19, 0.18), 1.0))
+	# The cell is set INTO a wall at the mouth plane, mouth sill ~500 mm up.
+	_build_wall(aabb)
 
 	# SF5 signalling beacon above the mouth: warns before + during motion.
 	var bm := SphereMesh.new()
@@ -172,6 +207,7 @@ func _build_world() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-62, -28, 0)
 	sun.light_energy = 1.25
+	sun.shadow_enabled = true   # shadows make the ~500 mm elevation read clearly
 	add_child(sun)
 	var world := WorldEnvironment.new()
 	var env := Environment.new()
@@ -183,13 +219,13 @@ func _build_world() -> void:
 	world.environment = env
 	add_child(world)
 
-	# Mostly-front 3/4 view (shell is see-through): looking broadside along +Z,
-	# tilted ~20 deg from the top and ~23 deg from the side, offset toward the
-	# mouth so the ejection zone sits in the foreground.
+	# Front-ish 3/4 from the room side (-X), elevated: faces INTO the mouth so the
+	# hole, the bore/piston (through the see-through wall + shell), and items falling
+	# clear in the foreground all read; the ~500 mm sill-above-ground stays visible.
 	var cam := Camera3D.new()
-	cam.position = Vector3(-0.7, 1.5, 4.2)
+	cam.position = Vector3(-2.6, 1.0, 2.9)
 	add_child(cam)
-	cam.look_at(Vector3(1.1, -0.05, 0.0), Vector3.UP)
+	cam.look_at(Vector3(0.6, floor_y - 0.15, 0.0), Vector3.UP)
 	cam.current = true
 
 	var canvas := CanvasLayer.new()
@@ -202,6 +238,43 @@ func _build_world() -> void:
 	status_label.position = Vector2(18, 52)
 	status_label.add_theme_font_size_override("font_size", 19)
 	canvas.add_child(status_label)
+
+
+func _build_wall(aabb: AABB) -> void:
+	# The cell is set INTO a wall: a facade at the mouth plane with a rectangular
+	# opening framing the barrel, the sill `sill_height` above the ground. Built as
+	# a 4-bar picture frame (bottom spandrel + head + two jambs), each a StaticBody
+	# so ejected items can't tunnel through. Opening sized from the shell AABB.
+	var reveal := 0.03
+	var ob := aabb.position.y - reveal                    # opening bottom (barrel outer)
+	var ot := aabb.position.y + aabb.size.y + reveal      # opening top
+	var ohw := aabb.size.z * 0.5 + reveal                 # opening half-width (Z)
+	var whw := ohw + 2.4                                  # wall half-span (Z)
+	var wtop := ot + 1.4                                  # wall top (Y)
+	var fd := 0.25                                         # facade depth: X in [mouth_x, +fd]
+	var cx := mouth_x + fd * 0.5
+	# Semi-transparent so it still reads as the wall the cell is set into, but never
+	# hides the mouth, the mechanism, or items falling clear in front of it.
+	var mat := _mat(Color(0.42, 0.44, 0.47), 0.9, 0.0, 0.28)
+
+	# bottom spandrel (ground -> sill): the ~500 mm wall directly under the mouth
+	_static_box(Vector3(fd, ob - ground_y, 2.0 * whw), Vector3(cx, (ground_y + ob) * 0.5, 0.0), mat)
+	# head (above the opening)
+	_static_box(Vector3(fd, wtop - ot, 2.0 * whw), Vector3(cx, (ot + wtop) * 0.5, 0.0), mat)
+	# jambs (either side of the opening)
+	var jh := ot - ob
+	var jw := whw - ohw
+	_static_box(Vector3(fd, jh, jw), Vector3(cx, (ob + ot) * 0.5, -(ohw + whw) * 0.5), mat)
+	_static_box(Vector3(fd, jh, jw), Vector3(cx, (ob + ot) * 0.5, (ohw + whw) * 0.5), mat)
+
+
+func _update_chain() -> void:
+	# Column spans the (moving) piston rear to the (fixed) magazine mouth; the rest
+	# is coiled in the magazine (total chain length conserved).
+	var piston_rear := piston_rear_deployed - il.progress * stroke
+	var col_len: float = maxf(magazine_front - piston_rear, 0.001)
+	column_mesh.size = Vector3(col_len, chain_w, chain_h)
+	column.position = Vector3((piston_rear + magazine_front) * 0.5, 0.0, 0.0)
 
 
 # --- contents ----------------------------------------------------------------
@@ -348,6 +421,7 @@ func _physics_process(delta: float) -> void:
 	if il.state == SafetyInterlock.State.CLEARING or il.state == SafetyInterlock.State.REDEPLOY:
 		saw_motion = true
 	_place_piston()
+	_update_chain()
 	_update_beacon()
 	_update_hud()
 
