@@ -516,6 +516,64 @@ on the limp-fall residual.
 
 ---
 
+## ADR-0014 — Interior lighting: warm, blue-depleted, occupancy-staged, top status
+**Date:** 2026-07-23
+**Status:** Accepted
+
+**Context.** The cell needs interior light to (a) let a user orient on entry and while
+inside, and (b) show status — without (c) preventing sleep. The users are vulnerable
+(asleep / intoxicated / unwell) and can't self-rescue, inside a sealed steel cavity.
+Fixed constraints: vandal resistance, hygiene (must survive the cleaning sweep +
+washdown), low energy, and NO interior user-accessible controls (ADR-0009). The three
+jobs pull against each other — light-to-see vs dark-to-sleep vs be-noticeable.
+
+**Decision.** A single warm, blue-depleted (≤2200 K / amber), flicker-free luminaire,
+recessed FLUSH into the crown (top) of the fixed barrel and running along the bore.
+Levels are occupancy-staged off SF1: on entry a brief orientation level (~20–50 lx),
+then a settled night-glow (~1–5 lx) held for the whole stay. The luminaire *is* the
+interior status indicator, by colour, but only while the pod is EMPTY — available =
+green, in-movement = red; the instant it is occupied it holds warm amber. An always-lit
+warm line marks the mouth threshold (egress) whenever occupied. "Closed" is not shown
+inside (self-evident once the piston face is the exterior wall).
+
+**Why.**
+- **Top / crown mount:** a lying body or bedding can't cover it, and the piston's top
+  wiper cleans it every sweep. Flush → no gap that would raise seal drag (SF3 / ADR-0011).
+- **Warm + blue-depleted + very low lux at rest:** minimal melanopic (melatonin) load,
+  so it doesn't block sleep. A large diffuse strip = low *luminance* → no glare even
+  though it is overhead (luminance dazzles, not lumens).
+- **Colour status only while empty:** green/red never fall on a sleeper; the occupancy
+  state itself switches the fixture from "signal" to "warm glow".
+- **Night-glow + egress marker are SAFETY, not comfort:** a pitch-black sealed steel box
+  for an intoxicated/unwell person invites panic, hides whether they have been sick, and
+  buries the only exit — the same non-self-rescue logic that drives SF1/SF2.
+- **Interior placement** keeps it cleaned by the sweep and is separate from the external
+  **SF5 beacon** (which still warns the PUBLIC face before motion) — two audiences.
+
+**Rejected alternatives.**
+- Floor / side mount: coverable by a body or bedding; not cleaned by the top wiper.
+- Fixed brightness: cannot satisfy see-on-entry AND sleep at once.
+- Cool/neutral white, or a bright status colour while occupied: melatonin suppression +
+  glare on the sleeper.
+- Occupant dimmer / any interior control: a tamperable, hygiene-trapping actuable that
+  conflicts with ADR-0009 (no interior release/controls). Staged auto-levels instead.
+
+**Accepted costs / constraints.**
+- Small standby energy for the always-on night-glow (bounded: one low-output warm LED
+  strip, order a few hundred mW).
+- The diffuser must survive repeated wiper contact + washdown — sealed, impact-resistant,
+  flush; a defined maintenance item.
+- Spectral/level targets (≤2200 K; ~1–5 lx rest, ~20–50 lx entry; melanopic EDI TBV) are
+  first-pass — validate against sleep/circadian + wayfinding human-factors data.
+- Flicker-free (no visible temporal light modulation): DC / constant-current drive.
+
+**Follow-ups.** SAFETY.md carries the night-glow + egress marker as occupant protection
+for non-self-rescue. CAD adds a flush crown `Luminaire` part (build_model.py); the twin
+and the render show the state→colour + warm glow. Confirm melanopic EDI + lux targets
+with a photometric spec.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface

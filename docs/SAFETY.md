@@ -163,7 +163,12 @@ from height. Logged here as accepted, not overlooked.
 - The accepted drop is ~500 mm only. Do NOT stack cells so a mouth opens over a real
   drop — upper tiers still need a same-level access gallery (a ~500 mm sill is the
   accepted trade, not a multi-metre fall).
-- Mouth edge + step-down legible in low light (complements SF5 signalling).
+- Mouth edge + step-down legible in low light (complements SF5 signalling). The interior
+  luminaire's always-lit warm egress line at the mouth threshold (ADR-0014) makes the
+  exit findable for a disoriented occupant; its low warm night-glow keeps the sealed
+  cavity from being pitch black (anti-panic, and sickness/hazards stay visible) — these
+  are occupant-protection functions, not comfort. Interior lighting is otherwise a
+  Services item (not an SF), but this egress/night-glow role is safety-relevant.
 
 **Responsibility.** Documented install requirement, verified at commissioning; the
 device cannot enforce it. The risk acceptance should carry a named sign-off.

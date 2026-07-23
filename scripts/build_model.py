@@ -49,6 +49,10 @@ PARAMS = [
     ("chainHeight",     "60 mm",                         "rigid-chain cross-section height Z (representative)"),
     ("magazineDepth",   "300 mm",                        "chain magazine/drive extent along X (compact)"),
     ("magazineSize",    "650 mm",                        "chain magazine Y and Z (holds the coiled chain)"),
+    ("luminaireWidth",  "140 mm",                        "interior light strip width Y (top-centre, flush crown) [ADR-0014]"),
+    ("luminaireDepth",  "4 mm",                          "diffuser recess into the crown wall (< wallThickness)"),
+    ("luminaireEndMargin", "150 mm",                     "strip setback from each cavity end along X"),
+    ("luminaireLength", "=cavityLength - 2 * luminaireEndMargin", "lit length along X (derived)"),
 ]
 
 
@@ -239,6 +243,24 @@ def build_chain_actuator(doc, sheet):
     return magazine, column
 
 
+def build_luminaire(doc, sheet):
+    """Luminaire (ADR-0014): the interior light + status strip. A warm, blue-depleted
+    diffuser recessed FLUSH into the crown (top) of the FIXED barrel, running along the
+    bore. Flush with the bore ceiling so the piston's top wiper cleans it every sweep and
+    it adds no gap (SF3); seated within the wall thickness so it never intrudes on the
+    keep-out cavity. Top-mounted so a lying occupant / bedding can't cover it. It carries
+    both the warm night-glow (sleep-safe) and the state colour (green/amber/red)."""
+    w = sheet.luminaireWidth.Value
+    d = sheet.luminaireDepth.Value
+    L = sheet.luminaireLength.Value
+    x0 = sheet.luminaireEndMargin.Value
+    z0 = sheet.interiorHeight.Value / 2.0          # inner crown = bore ceiling (flush)
+    lum = doc.addObject("Part::Feature", "Luminaire")
+    lum.Shape = Part.makeBox(L, w, d, App.Vector(x0, -w / 2.0, z0))
+    doc.recompute()
+    return lum
+
+
 def main():
     if App.ActiveDocument and App.ActiveDocument.Name == "HiveCell":
         App.closeDocument("HiveCell")
@@ -250,6 +272,7 @@ def main():
     piston = build_piston(doc, sheet)
     seals = build_wiper_seals(doc, sheet)
     build_chain_actuator(doc, sheet)
+    lum = build_luminaire(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
@@ -294,6 +317,16 @@ def main():
     print(f"Rigid-chain: magazine {sheet.magazineDepth.Value:.0f} deep x "
           f"{sheet.magazineSize.Value:.0f} sq, chain {sheet.chainWidth.Value:.0f}x{sheet.chainHeight.Value:.0f}")
     print(f"Total install depth behind wall: {install_depth:.0f} mm ({install_depth / 1000:.2f} m)")
+
+    lbb = lum.Shape.BoundBox
+    lum_in_cavity = ref_body.Shape.common(lum.Shape).Volume       # must be ~0 (flush, no intrusion)
+    lum_in_wall = shell.Shape.common(lum.Shape).Volume            # ~full volume (seated in the crown wall)
+    print(f"Luminaire (ADR-0014): crown strip {sheet.luminaireLength.Value:.0f} x "
+          f"{sheet.luminaireWidth.Value:.0f} mm, {sheet.luminaireDepth.Value:.0f} mm deep, flush at crown")
+    print(f"luminaire bbox (mm):    X={lbb.XLength:.0f}  Y={lbb.YLength:.0f}  Z={lbb.ZLength:.0f}  "
+          f"(crown Z={sheet.interiorHeight.Value / 2:.0f}..{sheet.interiorHeight.Value / 2 + sheet.luminaireDepth.Value:.0f})")
+    print(f"lum<->cavity intrusion={lum_in_cavity:.1f} mm^3 (want ~0: flush, no keep-out steal)  "
+          f"lum<->wall seated={lum_in_wall / 1000.0:.1f} cm^3 (want ~full: in the crown wall)")
 
 
 main()

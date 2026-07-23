@@ -47,6 +47,12 @@ scene = {
     "wall_thickness_m": round(sheet.wallThickness.Value / 1000.0, 4),
     "barrel_length_m": round(sheet.barrelLength.Value / 1000.0, 4),
     "cavity_length_m": round(sheet.cavityLength.Value / 1000.0, 4),
+    # interior luminaire (ADR-0014): flush crown strip; the render builds it procedurally
+    # (emissive) from these dims + shows the state colour / warm glow.
+    "luminaire_length_m": round(sheet.luminaireLength.Value / 1000.0, 4),
+    "luminaire_width_m": round(sheet.luminaireWidth.Value / 1000.0, 4),
+    "luminaire_end_margin_m": round(sheet.luminaireEndMargin.Value / 1000.0, 4),
+    "luminaire_crown_m": round(sheet.interiorHeight.Value / 2000.0, 4),  # up-axis coord of the bore crown
     # facility siting (ADR-0013 / SAFETY.md): mouth sill ~500 mm above ground.
     "sill_height_m": 0.5,
     "mouth_x_m": 0.0,             # public opening plane (barrel min X)

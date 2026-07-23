@@ -123,6 +123,50 @@ def key_beacon(em, frame, color, strength):
 GREEN = (0.15, 0.75, 0.25)
 RED = (0.95, 0.12, 0.08)
 ORANGE = (1.0, 0.55, 0.05)
+AMBER = (1.0, 0.62, 0.26)              # ADR-0014 warm night-glow (occupied / sleep-safe)
+
+
+# --- ADR-0014 interior luminaire: flush crown strip (light + status) ---------
+def build_luminaire():
+    """Emissive strip at the bore crown running along X (from the CAD/manifest dims),
+    plus a co-located strip area light so it actually washes the interior with its
+    colour. Carries the warm night-glow + the state colour, visible through the mouth."""
+    margin, width, crown = 0.15, 0.14, 0.55        # luminaire_end_margin / width / crown (m)
+    x0, x1 = MOUTH_X + margin, MOUTH_X + STROKE - margin
+    cx, length = (x0 + x1) * 0.5, (x1 - x0)
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0))
+    o = bpy.context.active_object
+    o.name = "Luminaire"
+    o.scale = (length, width, 0.02)
+    bpy.ops.object.transform_apply(scale=True)     # zeroes location -> set it after
+    o.location = (cx, 0.0, crown - 0.05)
+    m = bpy.data.materials.new("LuminaireMat")
+    m.use_nodes = True
+    nt = m.node_tree
+    em = nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
+    o.data.materials.append(m)
+    bpy.ops.object.light_add(type="AREA", location=(cx, 0.0, crown - 0.05))
+    light = bpy.context.active_object
+    light.name = "LuminaireLight"
+    light.data.shape = "RECTANGLE"
+    light.data.size = 0.18
+    light.data.size_y = length                     # a long strip light down the bore
+    return em, light
+
+
+def key_lum(lum, frame, color, em_strength, energy):
+    # scaled up so the cell's OWN light characterises the interior (external key/sun
+    # are dimmed for scenario mode, so this reads as the dominant interior source).
+    em, light = lum
+    em.inputs["Color"].default_value = (*color, 1.0)
+    em.inputs["Color"].keyframe_insert("default_value", frame=frame)
+    em.inputs["Strength"].default_value = em_strength * 0.5   # keep the bar's COLOUR (no white clip)
+    em.inputs["Strength"].keyframe_insert("default_value", frame=frame)
+    light.data.color = color
+    light.data.keyframe_insert("color", frame=frame)
+    light.data.energy = energy * 6.0                          # the wash carries the intensity
+    light.data.keyframe_insert("energy", frame=frame)
 
 
 # --- props -------------------------------------------------------------------
@@ -280,8 +324,26 @@ def recolor():
     setcol("Chain", (0.40, 0.43, 0.48), metal=1.0)
 
 
+def dim_external():
+    """Scenario mode: turn the studio key/sun down so the cell's own interior luminaire
+    (ADR-0014) reads as the dominant interior light, not a washed-out studio product."""
+    k = bpy.data.objects.get("Key")
+    if k:
+        k.data.energy *= 0.30
+    s = bpy.data.objects.get("Sun")
+    if s:
+        s.data.energy *= 0.45
+    w = sc.world                                    # dim the studio HDRI fill too
+    if w and w.node_tree:
+        bg = w.node_tree.nodes.get("Background")
+        if bg:
+            bg.inputs[1].default_value *= 0.4
+
+
 recolor()
+dim_external()
 beacon, em = build_beacon()
+lum = build_luminaire()
 
 
 def reveal_shell(f0, f1):
@@ -315,6 +377,10 @@ def beat_clear():
     key_beacon(em, 22, RED, 4.0); key_beacon(em, 65, RED, 4.0)
     key_beacon(em, 72, ORANGE, 3.0); key_beacon(em, 85, ORANGE, 3.0)
     key_beacon(em, 95, GREEN, 2.0)
+    # interior luminaire (ADR-0014): green (available) -> red (in-movement) -> green.
+    key_lum(lum, 1, GREEN, 3.0, 12.0); key_lum(lum, 15, GREEN, 3.0, 12.0)
+    key_lum(lum, 22, RED, 3.5, 16.0); key_lum(lum, 72, RED, 3.5, 16.0)
+    key_lum(lum, 85, GREEN, 3.0, 12.0)
     setup_rigidbody(end, items)
     return end
 
@@ -332,6 +398,9 @@ def beat_locked():
     while f < end:                                    # hard on/off strobe
         key_beacon(em, f, RED, 5.5); key_beacon(em, f + 6, RED, 0.15)
         f += 12
+    # interior luminaire (ADR-0014): warm amber the whole stay (occupied / sleep-safe),
+    # NOT the external beacon's red alarm — two audiences.
+    key_lum(lum, 1, AMBER, 2.5, 10.0); key_lum(lum, end, AMBER, 2.5, 10.0)
     return end
 
 
@@ -357,6 +426,11 @@ def beat_intrude():
     while f < end:
         key_beacon(em, f, RED, 5.5); key_beacon(em, f + 6, RED, 0.15)
         f += 12
+    # interior luminaire: red while sweeping (empty) -> warm amber the instant life is
+    # detected (machine yields to the occupant).
+    key_lum(lum, 1, GREEN, 3.0, 12.0); key_lum(lum, 12, GREEN, 3.0, 12.0)
+    key_lum(lum, 18, RED, 3.5, 16.0); key_lum(lum, intr - 2, RED, 3.5, 16.0)
+    key_lum(lum, intr + 2, AMBER, 2.5, 10.0); key_lum(lum, end, AMBER, 2.5, 10.0)
     setup_rigidbody(intr, items)                      # items only pushed during forward stroke
     return end
 

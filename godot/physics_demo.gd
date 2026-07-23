@@ -43,6 +43,13 @@ var chain_h := 0.06        ## meters (Z)
 var column: MeshInstance3D
 var column_mesh: BoxMesh
 
+## Interior luminaire (ADR-0014): a flush crown strip carrying the warm night-glow +
+## state colour. From manifest; the twin builds it procedurally (like ChainColumn).
+var lum_length := 1.9      ## strip length along X
+var lum_width := 0.14      ## strip width along Z
+var lum_margin := 0.15     ## setback from the cavity ends (X)
+var lum_crown := 0.55      ## bore crown (Y up)
+
 var piston: AnimatableBody3D
 var spawned: Array[Node] = []
 var person: Node3D = null
@@ -50,6 +57,8 @@ var title_label: Label
 var status_label: Label
 var beacon: MeshInstance3D            ## SF5 signalling light
 var beacon_mat: StandardMaterial3D
+var luminaire: MeshInstance3D         ## ADR-0014 interior light + status strip (crown)
+var luminaire_mat: StandardMaterial3D
 
 var scenarios := [
 	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0,  "person": false, "intrude": false},
@@ -89,6 +98,10 @@ func _load_manifest() -> void:
 		piston_rear_deployed = float(d.get("piston_rear_deployed_m", piston_rear_deployed))
 		chain_w = float(d.get("chain_width_m", chain_w))
 		chain_h = float(d.get("chain_height_m", chain_h))
+		lum_length = float(d.get("luminaire_length_m", lum_length))
+		lum_width = float(d.get("luminaire_width_m", lum_width))
+		lum_margin = float(d.get("luminaire_end_margin_m", lum_margin))
+		lum_crown = float(d.get("luminaire_crown_m", lum_crown))
 
 
 # --- helpers -----------------------------------------------------------------
@@ -202,6 +215,19 @@ func _build_world() -> void:
 	beacon.material_override = beacon_mat
 	beacon.position = Vector3(mouth_x - 0.25, 0.95, 0.0)
 	add_child(beacon)
+
+	# ADR-0014 interior luminaire: a flush crown strip (top of the bore, running along X)
+	# carrying the warm night-glow + the state colour; visible to an occupant and through
+	# the mouth. Emissive so it reads as a light, not a lit surface. Fixed (not on the piston).
+	var lbm := BoxMesh.new()
+	lbm.size = Vector3(lum_length, 0.02, lum_width)
+	luminaire = MeshInstance3D.new()
+	luminaire.mesh = lbm
+	luminaire_mat = StandardMaterial3D.new()
+	luminaire_mat.emission_enabled = true
+	luminaire.material_override = luminaire_mat
+	luminaire.position = Vector3(mouth_x + lum_margin + lum_length * 0.5, lum_crown - 0.03, 0.0)
+	add_child(luminaire)
 
 	# Lights + environment.
 	var sun := DirectionalLight3D.new()
@@ -423,6 +449,7 @@ func _physics_process(delta: float) -> void:
 	_place_piston()
 	_update_chain()
 	_update_beacon()
+	_update_luminaire()
 	_update_hud()
 
 	if _scenario_done() and scn_time > 2.0:
@@ -459,6 +486,31 @@ func _update_beacon() -> void:
 	beacon_mat.emission_energy_multiplier = energy
 
 
+func _update_luminaire() -> void:
+	# ADR-0014: the interior strip holds WARM AMBER while OCCUPIED (reassurance + the
+	# sleep-safe night-glow). The status colours only show while the pod is EMPTY, so
+	# green (available) / red (in-movement) never fall on a sleeper.
+	var col: Color
+	var energy := 1.2
+	if il.life_present():
+		col = Color(1.0, 0.62, 0.26)          # warm amber: occupied / safe (night-glow)
+		energy = 0.9                          # low, so it doesn't prevent sleep
+	elif il.state == SafetyInterlock.State.CLEARING \
+			or il.state == SafetyInterlock.State.REDEPLOY \
+			or il.state == SafetyInterlock.State.LIFE_CHECK:
+		col = Color(0.95, 0.15, 0.1)          # red: in movement (empty pod) — warns intruders
+		var t := Time.get_ticks_msec() / 1000.0
+		energy = 0.8 + 1.6 * (0.5 + 0.5 * sin(t * 6.0 * TAU))
+	elif il.state == SafetyInterlock.State.AVAILABLE:
+		col = Color(0.2, 0.8, 0.32)           # green: available / ready to occupy
+	else:
+		col = Color(1.0, 0.55, 0.05)          # closed/hold — not really seen inside
+		energy = 0.5
+	luminaire_mat.albedo_color = col
+	luminaire_mat.emission = col
+	luminaire_mat.emission_energy_multiplier = energy
+
+
 func _update_hud() -> void:
 	var names := {
 		SafetyInterlock.State.AVAILABLE: "AVAILABLE (deployed)",
@@ -475,7 +527,12 @@ func _update_hud() -> void:
 		Color(1, 0.5, 0.45) if (life or over) else Color(0.6, 1, 0.7))
 	var force_note := "  !! OVER LIMIT -> STOP & REVERSE" if over else ""
 	var sig = ["READY", "MOVING", "CLOSED", "ALARM"][il.signal_level()]
-	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s\nSF5 signal: %s" % [
+	var moving := il.state == SafetyInterlock.State.CLEARING \
+		or il.state == SafetyInterlock.State.REDEPLOY \
+		or il.state == SafetyInterlock.State.LIFE_CHECK
+	var lum_state := "warm amber (occupied)" if life else ("red (moving)" if moving else \
+		("green (ready)" if il.state == SafetyInterlock.State.AVAILABLE else "— (closed)"))
+	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s\nSF5 signal: %s\nADR-0014 interior light: %s" % [
 		names[il.state], ("DETECTED" if life else "clear"), int(round(il.progress * 100.0)),
-		int(round(drive_load)), int(SAFE_CONTACT_N), force_note, sig
+		int(round(drive_load)), int(SAFE_CONTACT_N), force_note, sig, lum_state
 	]

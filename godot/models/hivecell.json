@@ -10,6 +10,10 @@
   "cavity_width_m": 1.0,
   "corner_radius_m": 0.125,
   "wall_thickness_m": 0.006,
+  "luminaire_length_m": 1.9,
+  "luminaire_width_m": 0.14,
+  "luminaire_end_margin_m": 0.15,
+  "luminaire_crown_m": 0.55,
   "sill_height_m": 0.5,
   "retract_seconds_real": 600,
   "moving_parts": [
