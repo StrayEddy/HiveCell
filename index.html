@@ -8,7 +8,8 @@
 <meta property="og:title" content="HiveCell — safe-by-design public sleeping infrastructure">
 <meta property="og:description" content="Open-source hardware research. A powered sleeping cell that fails safe around a vulnerable, sleeping occupant. Design + simulation, uncertified.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="assets/hero.png">
+<meta property="og:image" content="https://strayeddy.github.io/HiveCell/assets/poster.jpg">
+<meta property="og:url" content="https://strayeddy.github.io/HiveCell/">
 <style>
   :root {
     --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --text:#e6edf3; --muted:#9aa4b2;
@@ -53,8 +54,8 @@
   header.hero::before {
     content:""; position:absolute; inset:0;
     background:
-      linear-gradient(180deg, rgba(13,17,23,.72), rgba(13,17,23,.94)),
-      url("assets/hero.png") center/cover no-repeat;
+      linear-gradient(180deg, rgba(13,17,23,.70), rgba(13,17,23,.93)),
+      url("assets/poster.jpg") center/cover no-repeat;
     opacity:.9;
   }
   header.hero .wrap { position:relative; }
@@ -81,6 +82,15 @@
 
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:center; }
   @media (max-width:720px){ .grid2 { grid-template-columns:1fr; } }
+
+  /* video */
+  #watch { background:linear-gradient(180deg,#10151c,#0d1117); text-align:center; }
+  .videowrap { position:relative; max-width:840px; margin:0 auto; border-radius:16px; padding:2px;
+    background:linear-gradient(135deg, rgba(240,163,94,.5), rgba(63,185,80,.35)); }
+  .videowrap video { width:100%; display:block; border-radius:14px; background:#000; }
+  .videowrap::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
+    box-shadow:0 24px 70px rgba(0,0,0,.6); }
+  .videocap { color:var(--muted); font-size:.9rem; margin-top:16px; }
 
   /* mechanism diagram */
   .diagram { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
@@ -141,6 +151,20 @@
     </div>
   </div>
 </header>
+
+<section id="watch">
+  <div class="wrap">
+    <h2>See it work</h2>
+    <p class="lead" style="margin-left:auto;margin-right:auto">The digital twin runs the real safety logic. It clears an empty pod — and the instant life is detected, it holds still and reverses. It never pushes.</p>
+    <figure class="videowrap" style="margin:0 auto">
+      <video autoplay muted loop playsinline preload="metadata" poster="assets/poster.jpg">
+        <source src="assets/cinematic.mp4" type="video/mp4">
+        Your browser can’t play the demo video — <a href="assets/cinematic.mp4">download it</a>.
+      </video>
+    </figure>
+    <p class="videocap">Godot digital twin (same interlock the headless safety tests gate): the piston sweeps loose items out of an empty pod, then locks the moment an occupant is present.</p>
+  </div>
+</section>
 
 <section id="what">
   <div class="wrap">

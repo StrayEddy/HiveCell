@@ -1,5 +1,7 @@
 # HiveCell
 
+**🌐 Project site & demo video: [strayeddy.github.io/HiveCell](https://strayeddy.github.io/HiveCell/)**
+
 > **Open-source hardware research — uncertified, not a deployable product.**
 > HiveCell moves a powered steel piston through a space a person occupies. It is
 > **design and simulation only**: no built hardware, no physical validation, no
