@@ -482,9 +482,20 @@ this ADR fixes the PHYSICS and the RATING.
 - Formal PL e verification (category, MTTFd, DC, CCF per ISO 13849-1) once parts chosen.
 - Dwell time vs. apnea / breath-hold: set from clinical data.
 
-**Follow-ups.** Choose sensor part numbers; optionally extend `safety_interlock.gd` with
-per-channel inputs + diagnostics for a higher-fidelity sim; build the PL e verification
-dossier.
+**Modelled (2026-07-23).** The diverse-redundant voting is now a real module,
+`godot/occupancy_fusion.gd` (four channels: radar vitals / thermal / NDIR CO2 /
+load-BCG), replacing the stub OR in `safety_interlock.gd` (which now consults the
+fusion when attached). It encodes the three fail-safe rules — OR-toward-life,
+fault=occupied (unhealthy / out-of-range / stale), AND-toward-clear — and a runtime
+`self_test()`. The headless test `godot/tests/test_occupancy_fusion.gd` fault-injects
+each channel/mode, checks the diversity cases (hypothermic-covered occupant; static
+mass with no life signs; fully blinded suite), and exhaustively verifies the invariant
+across all 3⁴ vote combinations: "empty" only when **every** channel positively reads
+clear. This is `[sim]` — logic + rating, still no physical sensors.
+
+**Follow-ups.** Choose sensor part numbers; optionally surface the per-channel votes in
+the visual twin (`physics_demo`); build the PL e verification dossier (category, MTTFd,
+DC, CCF per ISO 13849-1) once parts are chosen.
 
 ---
 

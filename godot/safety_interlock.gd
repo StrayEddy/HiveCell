@@ -15,6 +15,12 @@ enum SignalLevel { READY, MOVING, CLOSED, ALARM }   # green / red / orange / fla
 
 var profile := SoftProfile.new()    # SF5 soft velocity profile (shapes the sweep)
 
+## SF1 occupancy fusion (ADR-0012). When set, life_present() consults the
+## diverse-redundant, fail-safe voter instead of the simplified ground-truth
+## fields below. Left null in the pure-logic interlock tests (which drive
+## occupant_alive / sensor_fault directly). The twin attaches a real suite.
+var fusion: OccupancyFusion = null
+
 # --- tuning ---
 var demo_seconds := 8.0
 var hold_seconds := 2.0
@@ -40,6 +46,8 @@ var reverse_from := 0.0        ## progress captured when a reverse begins
 ## OR toward life. In the twin/test all read the simulated ground truth; on real
 ## hardware this is an OR across independent sensor outputs. A fault reads occupied.
 func life_present() -> bool:
+	if fusion != null:
+		return fusion.occupied()
 	if sensor_fault:
 		return true
 	return occupant_alive
@@ -67,6 +75,8 @@ func signal_level() -> int:
 
 func step(delta: float) -> void:
 	t += delta
+	if fusion != null:
+		fusion.tick(delta)   # age the sensor channels; unrefreshed => stale => occupied
 	match state:
 		State.AVAILABLE:
 			# Pod in use. Session end never moves blindly: life-check first.

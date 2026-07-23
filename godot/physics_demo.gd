@@ -346,9 +346,12 @@ func _start_scenario(i: int) -> void:
 	il.life_check_seconds = 0.6
 
 	var s = scenarios[i]
-	# SF1 sees a living occupant -- UNLESS this scenario simulates a blind/failed
-	# sensor, in which case SF2 (contact force) is the only thing left to catch it.
-	il.occupant_alive = s["person"] and not s.get("sf1_blind", false)
+	# SF1 now runs the REAL diverse-redundant fusion (ADR-0012, occupancy_fusion.gd):
+	# the visual twin and the logic can't drift because life_present() reads this same
+	# voter. Its four channels are driven from ground truth every frame in
+	# _update_fusion(). A "blind" scenario models an SF1 false-negative (channels
+	# healthy + fresh but not detecting), so SF2 (contact force) is the only catch left.
+	il.fusion = OccupancyFusion.new()
 	print("[scenario] ", s["title"])
 
 	var n: int = s["things"]
@@ -418,8 +421,9 @@ func _physics_process(delta: float) -> void:
 	# Bonus scenario: someone reaches in once the sweep is well underway.
 	if scenarios[scn]["intrude"] and not intruded \
 			and il.state == SafetyInterlock.State.CLEARING and il.progress > 0.45:
-		il.occupant_alive = true
 		intruded = true
+		# The reach-in body is spawned; _update_fusion() sees it and the SF1 channels
+		# light up (no separate occupant flag -- ground truth drives the same voter).
 		_spawn_person(Vector3(mouth_x + 0.35, floor_y + 0.28, 0.0))
 
 	# SF2: estimate the contact force the drive is meeting and set the independent
@@ -428,6 +432,8 @@ func _physics_process(delta: float) -> void:
 	il.contact_over_limit = drive_load > SAFE_CONTACT_N
 	if il.contact_over_limit:
 		sf2_tripped = true
+
+	_update_fusion()   # drive the SF1 channels from ground truth BEFORE the interlock steps
 
 	il.step(delta)
 	if il.state == SafetyInterlock.State.CLEARING or il.state == SafetyInterlock.State.REDEPLOY:
@@ -439,6 +445,32 @@ func _physics_process(delta: float) -> void:
 
 	if _scenario_done() and scn_time > 2.0:
 		_start_scenario((scn + 1) % scenarios.size())
+
+
+func _update_fusion() -> void:
+	# Keep the visual twin and SF1 logic in lockstep: the four diverse channels read
+	# the SAME ground truth the scene shows (a living body in the bore), refreshed each
+	# frame. A blind scenario is an SF1 false-negative -- channels healthy + fresh but
+	# NOT detecting the present occupant -- leaving SF2 as the only catch.
+	if il.fusion == null:
+		return
+	var blind: bool = scenarios[scn].get("sf1_blind", false)
+	var life_here: bool = (person != null and is_instance_valid(person)) and not blind
+	for c in il.fusion.channels:
+		c.present = life_here   # all diverse channels see a warm, breathing, massed body
+		c.age = 0.0             # sampled fresh this frame (no staleness fault)
+
+
+## Compact per-channel SF1 readout for the HUD (radar / thermal / CO2 / load).
+func _fusion_votes_str() -> String:
+	if il.fusion == null:
+		return "(none)"
+	var abbr := {"radar_vitals": "radar", "thermal_ir": "thermal", "ndir_co2": "CO2", "load_bcg": "load"}
+	var tag := ["clear", "OCC", "FLT"]
+	var parts: Array[String] = []
+	for c in il.fusion.channels:
+		parts.append("%s=%s" % [abbr.get(c.name, c.name), tag[c.vote()]])
+	return "  ".join(parts)
 
 
 func _update_luminaire() -> void:
@@ -487,7 +519,8 @@ func _update_hud() -> void:
 		or il.state == SafetyInterlock.State.LIFE_CHECK
 	var lum_state := "warm amber (occupied)" if life else ("red (moving)" if moving else \
 		("green (ready)" if il.state == SafetyInterlock.State.AVAILABLE else "— (closed)"))
-	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF2 force: %d N / %d N cap%s\nSF5 signal: %s\nADR-0014 interior light: %s" % [
+	status_label.text = "Interlock: %s\nSF1 life: %s    Sweep: %d%%\nSF1 fusion (ADR-0012): %s\nSF2 force: %d N / %d N cap%s\nSF5 signal: %s\nADR-0014 interior light: %s" % [
 		names[il.state], ("DETECTED" if life else "clear"), int(round(il.progress * 100.0)),
+		_fusion_votes_str(),
 		int(round(drive_load)), int(SAFE_CONTACT_N), force_note, sig, lum_state
 	]
