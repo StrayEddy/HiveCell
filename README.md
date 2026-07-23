@@ -55,6 +55,8 @@ resting on SF1 alone (ADR-0013); recorded transparently, with the safer alternat
 **Biggest open risk:** seal drag is the master variable — it couples the seal (SF3), the
 SF4 return spring, and the actuator size, yet is currently only estimated (~16–700 N/m).
 It must be measured on a real seal sample before the force numbers are frozen (ADR-0011).
+A ~$200 bench procedure to do exactly that — the highest-value next experiment, and a
+great first contribution — is in [`docs/seal_drag_bench_test.md`](docs/seal_drag_bench_test.md).
 
 Everything above is design/simulation and first-order analysis. Real progress from here
 is physical-world validation: bench-measure seal drag, prototype the SF1 radar, and build
