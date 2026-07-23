@@ -283,7 +283,9 @@ the mechanism is chosen. Confirm the pin-relief numbers with real tissue/seal da
 
 ## ADR-0010 — Actuator: single-acting tension-close + spring-open (supersedes ADR-0008)
 **Date:** 2026-07-21
-**Status:** Proposed (supersedes ADR-0008 if accepted)
+**Status:** Proposed (supersedes ADR-0008 if accepted). **Architecture de-risked
+against the seal-drag unknown (2026-07-23, `scripts/seal_drag_sweep.py`): the
+number sets the *sizing*, not the *choice* — see "Sensitivity" below.**
 
 **Context.** ADR-0008 chose rigid-chain for three reasons: shallow install depth,
 self-locking hold without power, and compactness. Two later decisions moved the goal
@@ -346,6 +348,24 @@ open.
   drum/motor/gearing and the tension member rating.
 - Verify the drum freewheels/back-drives on power loss (not self-locking; a
   fail-released brake, not a fail-applied one).
+
+**Sensitivity to seal drag (2026-07-23, `scripts/seal_drag_sweep.py`).** Seal drag is
+the master unknown (~16–700 N/m; SF3/ADR-0011). Sweeping it through the same force
+model as `actuator_sizing.py` / `pin_relief.py` shows the *architecture* is robust and
+only the *sizing* moves:
+- **Passive fail-open relief is safe only below ~13 N/m**, and the credible range
+  *starts* at ~16 — so the SF4 return spring is mandatory across essentially the whole
+  range. ADR-0009 isn't marginal, and ADR-0010's premise (reuse that mandatory
+  full-stroke spring as the opener) holds nearly everywhere.
+- **This decision therefore does not hinge on the measurement.** The measured number
+  sets the *size*: design force swings ~60× (437 N at 10 N/m → ~25.6 kN at 700 N/m),
+  spring energy 0.3 → 16 kJ. Spring-open + tension-close stays the right shape.
+- **Rework trigger: ~300 N/m.** Above it, forces are 2–4× the model and the design must
+  change (cut interference, drop to one lip, or change seal tech) rather than just
+  resize the drive. So the bench test is also a go/no-go on the 2-lip / 3 mm design.
+Practical read: accept ADR-0010's architecture now; leave the drum/motor/spring/damper
+*sizing* open until the bench test (`docs/seal_drag_bench_test.md`) returns a number,
+then read it against the sweep table.
 
 **Follow-ups (if accepted).** CAD: replace ChainMagazine/ChainColumn with a drum +
 tension member + return spring + flush latch; re-export to the twin. Update the
