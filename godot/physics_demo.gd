@@ -55,8 +55,6 @@ var spawned: Array[Node] = []
 var person: Node3D = null
 var title_label: Label
 var status_label: Label
-var beacon: MeshInstance3D            ## SF5 signalling light
-var beacon_mat: StandardMaterial3D
 var luminaire: MeshInstance3D         ## ADR-0014 interior light + status strip (crown)
 var luminaire_mat: StandardMaterial3D
 
@@ -203,18 +201,6 @@ func _build_world() -> void:
 		_mat(Color(0.17, 0.19, 0.18), 1.0))
 	# The cell is set INTO a wall at the mouth plane, mouth sill ~500 mm up.
 	_build_wall(aabb)
-
-	# SF5 signalling beacon above the mouth: warns before + during motion.
-	var bm := SphereMesh.new()
-	bm.radius = 0.12
-	bm.height = 0.24
-	beacon = MeshInstance3D.new()
-	beacon.mesh = bm
-	beacon_mat = StandardMaterial3D.new()
-	beacon_mat.emission_enabled = true
-	beacon.material_override = beacon_mat
-	beacon.position = Vector3(mouth_x - 0.25, 0.95, 0.0)
-	add_child(beacon)
 
 	# ADR-0014 interior luminaire: a flush crown strip (top of the bore, running along X)
 	# carrying the warm night-glow + the state colour; visible to an occupant and through
@@ -448,42 +434,11 @@ func _physics_process(delta: float) -> void:
 		saw_motion = true
 	_place_piston()
 	_update_chain()
-	_update_beacon()
 	_update_luminaire()
 	_update_hud()
 
 	if _scenario_done() and scn_time > 2.0:
 		_start_scenario((scn + 1) % scenarios.size())
-
-
-func _update_beacon() -> void:
-	# SF5: green = ready to occupy, red = about to move / moving, orange = closed.
-	var lvl := il.signal_level()
-	var col := Color(0.15, 0.75, 0.25)          # READY: green
-	var rate := 0.0
-	var strobe := false
-	if lvl == SafetyInterlock.SignalLevel.MOVING:
-		col = Color(0.95, 0.15, 0.1)            # red
-		# blink fast while actually moving, slow while about to move
-		var moving := il.state == SafetyInterlock.State.CLEARING \
-			or il.state == SafetyInterlock.State.REDEPLOY
-		rate = 7.0 if moving else 2.0
-	elif lvl == SafetyInterlock.SignalLevel.ALARM:
-		col = Color(1.0, 0.05, 0.05)            # urgent red, hard strobe
-		rate = 6.0
-		strobe = true
-	elif lvl == SafetyInterlock.SignalLevel.CLOSED:
-		col = Color(1.0, 0.55, 0.05)            # orange
-	var energy := 1.6
-	if rate > 0.0:
-		var t := Time.get_ticks_msec() / 1000.0
-		if strobe:
-			energy = 4.5 if sin(t * rate * TAU) > 0.0 else 0.05   # hard on/off alarm
-		else:
-			energy = 0.6 + 2.4 * (0.5 + 0.5 * sin(t * rate * TAU))  # smooth blink
-	beacon_mat.albedo_color = col
-	beacon_mat.emission = col
-	beacon_mat.emission_energy_multiplier = energy
 
 
 func _update_luminaire() -> void:
