@@ -27,6 +27,11 @@ MODELS = os.path.join(ROOT, "blender", "models")
 OUT_BLEND = os.path.join(ROOT, "blender", "hivecell.blend")
 OUT_PREVIEW = os.path.join(ROOT, "renders", "preview.png")
 
+# Render look: "night" = interior-light hero (dark scene, the ADR-0014 warm crown
+# luminaire is the focal source, warm glow rakes the stainless); "studio" = the
+# original bright product shot. Override with HIVECELL_RENDER=studio.
+MODE = os.environ.get("HIVECELL_RENDER", "night")
+
 with open(os.path.join(MODELS, "scene.json")) as f:
     S = json.load(f)
 
@@ -142,6 +147,34 @@ box("Wall_head", (fd, 2 * whw, wtop - ot), (cx, 0.0, (ot + wtop) * 0.5), mat_wal
 box("Wall_jambL", (fd, whw - ohw, ot - ob), (cx, -(ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
 box("Wall_jambR", (fd, whw - ohw, ot - ob), (cx, (ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
 
+# --- ADR-0014 interior luminaire: warm crown strip + co-located wash light ----
+# An emissive strip at the bore crown running along X (CAD/manifest dims), plus a
+# rectangular area light so the strip actually washes the interior. In night mode
+# this is the dominant source; in studio mode it's a subtle present-but-not-hero.
+AMBER = (1.0, 0.62, 0.26)                       # ADR-0014 warm night-glow (sleep-safe)
+lum_margin = S["luminaire_end_margin_m"]
+lum_len = S["luminaire_length_m"]
+lum_wid = S["luminaire_width_m"]
+lum_cx = S["mouth_x_m"] + lum_margin + lum_len * 0.5
+lum_y = (ymin + ymax) * 0.5
+lum_z = zmax - 0.04                             # just under the bore crown
+lum_mat = bpy.data.materials.new("Luminaire")
+lum_mat.use_nodes = True
+_lnt = lum_mat.node_tree
+_em = _lnt.nodes.new("ShaderNodeEmission")
+_em.inputs["Color"].default_value = (*AMBER, 1.0)
+_em.inputs["Strength"].default_value = 3.8 if MODE == "night" else 1.2
+_lnt.links.new(_em.outputs["Emission"], _lnt.nodes["Material Output"].inputs["Surface"])
+box("Luminaire", (lum_len, lum_wid, 0.02), (lum_cx, lum_y, lum_z), lum_mat)
+bpy.ops.object.light_add(type="AREA", location=(lum_cx, lum_y, lum_z - 0.02))
+lum_light = bpy.context.active_object
+lum_light.name = "LuminaireLight"
+lum_light.data.shape = "RECTANGLE"
+lum_light.data.size = 0.16
+lum_light.data.size_y = lum_len                 # a long strip light down the bore
+lum_light.data.color = AMBER
+lum_light.data.energy = 70.0 if MODE == "night" else 16.0   # points -Z, washes the bore
+
 # --- lighting (studio 3-point + soft world) ----------------------------------
 world = bpy.data.worlds.new("W")
 world.use_nodes = True
@@ -185,6 +218,17 @@ else:
     print("world: gradient fallback (no HDRI)")
 bpy.context.scene.world = world
 
+if MODE == "night":
+    # Deep, dim night: the warm crown luminaire becomes the brightest thing in
+    # frame, so it reads as a light and its glow rakes across the stainless.
+    nworld = bpy.data.worlds.new("W_night")
+    nworld.use_nodes = True
+    nbg = nworld.node_tree.nodes["Background"]
+    nbg.inputs[0].default_value = (0.02, 0.026, 0.04, 1.0)   # cool near-black
+    nbg.inputs[1].default_value = 0.22                       # enough ambient to read the form
+    bpy.context.scene.world = nworld
+    print("world: night (dark) — luminaire is the hero source")
+
 
 def area_light(name, loc, energy, size, target):
     bpy.ops.object.light_add(type="AREA", location=loc)
@@ -205,21 +249,33 @@ focus.location = (1.0, 0.0, (floor_z + zmax) * 0.5)
 # grounding shadow and one soft key to shape the barrel.
 bpy.ops.object.light_add(type="SUN")
 sun = bpy.context.active_object
-sun.data.energy = 1.1
 sun.data.angle = math.radians(3.0)
 sun.rotation_euler = (math.radians(58), 0.0, math.radians(40))
-
-area_light("Key", (-3.0, -4.0, 3.5), 250.0, 4.0, focus)
+if MODE == "night":
+    sun.data.energy = 0.45                 # cool moon rim: lifts the wall/stainless form
+    sun.data.color = (0.55, 0.70, 1.0)
+    area_light("Key", (-3.0, -4.0, 3.5), 45.0, 4.0, focus)   # dim cool fill (shape only)
+else:
+    sun.data.energy = 1.1
+    area_light("Key", (-3.0, -4.0, 3.5), 250.0, 4.0, focus)
 
 # --- hero camera: broadside 3/4 showing the whole assembly, wall at the mouth,
 # barrel -> chain -> magazine receding, all elevated above the ground ---------
-bpy.ops.object.camera_add(location=(-1.2, -8.5, 2.6))
+if MODE == "night":
+    # Look INTO the mouth from the room side so the glowing crown + warm interior
+    # read (a broadside only shows the opaque exterior barrel, not the light).
+    zc = (zmin + zmax) * 0.5
+    cam_loc, lens = (-3.7, -2.3, zc + 0.72), 38   # pulled back: wall + glowing mouth read
+    focus.location = (0.6, 0.0, zc)
+else:
+    cam_loc, lens = (-1.2, -8.5, 2.6), 45
+    focus.location = (1.35, 0.0, (floor_z + zmax) * 0.5)
+bpy.ops.object.camera_add(location=cam_loc)
 cam = bpy.context.active_object
-cam.data.lens = 45
+cam.data.lens = lens
 c = cam.constraints.new("TRACK_TO")
 c.target = focus
 bpy.context.scene.camera = cam
-focus.location = (1.35, 0.0, (floor_z + zmax) * 0.5)
 
 # --- render settings ---------------------------------------------------------
 sc = bpy.context.scene
@@ -242,6 +298,7 @@ sc.render.resolution_x = 1792
 sc.render.resolution_y = 1008
 sc.render.film_transparent = False
 sc.view_settings.view_transform = "AgX"
+sc.view_settings.exposure = -0.15 if MODE == "night" else 0.0
 os.makedirs(os.path.dirname(OUT_PREVIEW), exist_ok=True)
 sc.render.filepath = OUT_PREVIEW
 

@@ -25,6 +25,7 @@ from mathutils import Vector
 
 BEAT = os.environ.get("HC_BEAT", "clear")
 DRAFT = os.environ.get("HC_DRAFT", "1") == "1"
+NIGHT = os.environ.get("HC_NIGHT", "1") == "1"   # night hero look (luminaire is the source)
 FPS = 24
 SAMPLES = int(os.environ.get("HC_SAMPLES", "4"))   # EEVEE TAA (a moving shot hides low counts)
 ROOT = "/home/eddy/Projects/HiveCell"
@@ -146,11 +147,14 @@ def build_luminaire():
     em = nt.nodes.new("ShaderNodeEmission")
     nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
     o.data.materials.append(m)
-    bpy.ops.object.light_add(type="AREA", location=(cx, 0.0, crown - 0.05))
+    # place the area light BELOW the emissive strip mesh, else the strip occludes its
+    # own downward emission and the bore goes dark (only exposed once external fill is
+    # removed for night). It points -Z by default, washing straight down the bore.
+    bpy.ops.object.light_add(type="AREA", location=(cx, 0.0, crown - 0.12))
     light = bpy.context.active_object
     light.name = "LuminaireLight"
     light.data.shape = "RECTANGLE"
-    light.data.size = 0.18
+    light.data.size = 0.20
     light.data.size_y = length                     # a long strip light down the bore
     return em, light
 
@@ -159,13 +163,21 @@ def key_lum(lum, frame, color, em_strength, energy):
     # scaled up so the cell's OWN light characterises the interior (external key/sun
     # are dimmed for scenario mode, so this reads as the dominant interior source).
     em, light = lum
+    boost = 1.6 if NIGHT else 1.0            # night: the cell's own light must dominate
     em.inputs["Color"].default_value = (*color, 1.0)
     em.inputs["Color"].keyframe_insert("default_value", frame=frame)
-    em.inputs["Strength"].default_value = em_strength * 0.5   # keep the bar's COLOUR (no white clip)
+    em.inputs["Strength"].default_value = em_strength * 0.5 * (2.0 if NIGHT else 1.0)
     em.inputs["Strength"].keyframe_insert("default_value", frame=frame)
     light.data.color = color
     light.data.keyframe_insert("color", frame=frame)
-    light.data.energy = energy * 6.0                          # the wash carries the intensity
+    e = energy * 6.0 * boost                                  # the wash carries the intensity
+    if NIGHT:
+        # Saturated colours (esp. red) carry far less luminance than green/amber, so a
+        # constant wattage reads dark. Compensate by the colour's luma so every state
+        # is equally legible: red ~2x, green ~1x, amber ~0.9x.
+        luma = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+        e *= min(2.2, 0.62 / max(luma, 0.22))
+    light.data.energy = e
     light.data.keyframe_insert("energy", frame=frame)
 
 
@@ -340,8 +352,46 @@ def dim_external():
             bg.inputs[1].default_value *= 0.4
 
 
+def _purge(*names):
+    """Remove named objects if the base .blend already carries them (build_scene now
+    bakes a static luminaire for the still hero; the cinematic keys its OWN, so drop
+    any pre-existing one to avoid a doubled light)."""
+    for nm in names:
+        o = bpy.data.objects.get(nm)
+        if o:
+            bpy.data.objects.remove(o, do_unlink=True)
+
+
+def set_night():
+    """Night hero look: replace the world with a deep dark one so the ADR-0014
+    luminaire is the dominant source, drop external light to a faint cool rim, and
+    let the ground/wall recede into the dark. The interior state colour (green/red/
+    amber) then reads as the light of the cell itself — the safety story, at night."""
+    nworld = bpy.data.worlds.new("W_night")
+    nworld.use_nodes = True
+    nbg = nworld.node_tree.nodes["Background"]
+    nbg.inputs[0].default_value = (0.025, 0.03, 0.045, 1.0)   # cool near-black sky
+    nbg.inputs[1].default_value = 0.32                        # ambient enough to read the form
+    sc.world = nworld
+    k = bpy.data.objects.get("Key")
+    if k:
+        k.data.energy = 22.0                                 # faint cool fill (shape only)
+    s = bpy.data.objects.get("Sun")
+    if s:
+        s.data.energy = 0.5
+        s.data.color = (0.55, 0.70, 1.0)                     # moon rim
+    for nm, rgb in (("Floor", (0.04, 0.045, 0.06)), ("Wall", (0.11, 0.11, 0.14))):
+        m = bpy.data.materials.get(nm)
+        if m and principled(m):
+            principled(m).inputs["Base Color"].default_value = (*rgb, 1.0)
+    sc.view_settings.exposure = -0.05
+
+
 recolor()
 dim_external()
+if NIGHT:
+    set_night()
+_purge("Luminaire", "LuminaireLight")   # base may include build_scene's static one
 beacon, em = build_beacon()
 lum = build_luminaire()
 

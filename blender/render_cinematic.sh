@@ -50,6 +50,7 @@ for b in "${BEATS[@]}"; do
     echo "rendering beat: $b"
     rm -f "$ROOT/renders/beats/$b"/*.png
     HC_BEAT="$b" HC_DRAFT="$DRAFT" HC_LOWRES="${HC_LOWRES:-0}" HC_SAMPLES="${HC_SAMPLES:-4}" \
+        HC_NIGHT="${HC_NIGHT:-1}" \
         flatpak run --filesystem="$ROOT" \
         org.blender.Blender --background "$ROOT/blender/hivecell.blend" \
         --python "$ROOT/blender/scenario_cinematic.py" >/dev/null 2>&1
