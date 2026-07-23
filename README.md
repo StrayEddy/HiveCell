@@ -1,5 +1,11 @@
 # HiveCell
 
+> **Open-source hardware research — uncertified, not a deployable product.**
+> HiveCell moves a powered steel piston through a space a person occupies. It is
+> **design and simulation only**: no built hardware, no physical validation, no
+> safety certification. **Do not build this to put a person inside it.** See
+> [`LICENSE`](LICENSE) for the full safety notice and licensing.
+
 Modular public sleeping infrastructure. Each cell is a recessed cavity in a large
 wall that provides one clean, safe overnight sleeping space. When unavailable, the
 cavity retracts into the wall until the public face is flush, moving the sleeping
@@ -91,3 +97,19 @@ Run the self-tests manually anytime (set `GODOT_BIN` if Godot isn't on `PATH`):
 ```sh
 ./scripts/run_selftest.sh
 ```
+
+## License & contributing
+
+HiveCell is open-source, licensed by file type so each part uses the right license
+for its medium:
+
+- **Hardware** (`cad/`, `blender/`, `renders/`) — CERN-OHL-S-2.0 (strongly reciprocal)
+- **Documentation** (`docs/`, this README) — CC-BY-4.0
+- **Software** (`godot/`, `scripts/`) — Apache-2.0
+
+You may use, modify, and redistribute — including commercially — with attribution;
+hardware derivatives must stay open under the same terms. Full texts are in
+[`LICENSES/`](LICENSES/); the scheme and the **safety notice** are in
+[`LICENSE`](LICENSE). Contributions are welcome — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md); the most valuable one right now is a real
+bench measurement of seal drag (ADR-0011).

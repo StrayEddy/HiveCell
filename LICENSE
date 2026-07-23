@@ -1,0 +1,50 @@
+# HiveCell licensing
+
+HiveCell is an **open-source hardware research project**. Because it mixes
+hardware designs, written documentation, and software, three different licenses
+apply depending on the type of file. Full texts are in the [`LICENSES/`](LICENSES/)
+directory.
+
+| Part of the project | Covers | License | SPDX identifier |
+|---------------------|--------|---------|-----------------|
+| **Hardware designs** | `cad/`, `blender/`, `renders/`, and any mechanical geometry, CAD sources, models, or fabrication data | CERN Open Hardware Licence v2 – Strongly Reciprocal | `CERN-OHL-S-2.0` |
+| **Documentation** | `docs/`, `README.md`, ADRs, and all written engineering notes | Creative Commons Attribution 4.0 International | `CC-BY-4.0` |
+| **Software** | `godot/`, `scripts/`, and any source code | Apache License 2.0 | `Apache-2.0` |
+
+Copyright © 2026 Edouard Murat and the HiveCell contributors.
+
+Each license is *reciprocal or attribution-based*: you are free to use, study,
+modify, and redistribute this work — including commercially — provided you keep
+the attribution and, for the hardware and any derivatives, keep those derivatives
+open under the same terms (CERN-OHL-S). This is deliberate: HiveCell is public-good
+infrastructure, and the intent is that improvements stay available to everyone.
+
+If a specific file carries its own SPDX header, that header governs that file.
+
+---
+
+## ⚠️ Safety notice — this is uncertified research, not a deployable product
+
+**HiveCell describes a powered machine that moves a heavy steel piston through a
+space a human being occupies while asleep or otherwise unable to self-rescue. Built
+or operated incorrectly, it can seriously injure or kill someone.**
+
+Everything in this repository is **design and first-order simulation only**. As of
+this writing there is **no built hardware, no physical validation, and no safety
+certification** of any kind. In particular:
+
+- The safety functions (occupancy detection, contact-force reaction, fail-open drive,
+  etc.) exist as analysis and simulation. **None have been tested on real hardware or
+  certified** to ISO 13849 or any other standard.
+- Key physical parameters (notably seal drag) are **estimated, not measured**, and the
+  force calculations that follow from them are therefore unvalidated.
+
+Do **NOT** build this to house, shelter, or otherwise put a person inside it. Any
+physical build is for **isolated bench/engineering testing without an occupant** only.
+Turning this design into anything a person could safely use requires measured data,
+a full hardware safety-validation program, independent review, and formal
+certification — none of which this project has done.
+
+**THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND AND WITHOUT ANY
+IMPLICATION OF FITNESS FOR ANY PURPOSE, AS SET OUT IN THE APPLICABLE LICENCES ABOVE.
+The authors and contributors accept no liability for any use of this material.**
