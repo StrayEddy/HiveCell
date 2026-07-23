@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HiveCell — safe-by-design public sleeping infrastructure (open source)</title>
+<meta name="description" content="HiveCell is an open-source hardware research project: a modular public sleeping cell that retracts into a wall to self-clean. Safety-first, fully documented, uncertified.">
+<meta property="og:title" content="HiveCell — safe-by-design public sleeping infrastructure">
+<meta property="og:description" content="Open-source hardware research. A powered sleeping cell that fails safe around a vulnerable, sleeping occupant. Design + simulation, uncertified.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/hero.png">
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --text:#e6edf3; --muted:#9aa4b2;
+    --border:#232a33; --accent:#f0a35e; --green:#3fb950; --red:#f85149; --amber:#f0a35e;
+    --max:960px;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .wrap { max-width:var(--max); margin:0 auto; padding:0 20px; }
+  h1,h2,h3 { line-height:1.2; font-weight:700; }
+  code { background:var(--panel2); padding:.1em .4em; border-radius:4px; font-size:.9em; }
+
+  /* nav */
+  nav {
+    position:sticky; top:0; z-index:10; background:rgba(13,17,23,.85);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--border);
+  }
+  nav .wrap { display:flex; align-items:center; justify-content:space-between; height:56px; }
+  nav .brand { font-weight:700; letter-spacing:.02em; }
+  nav .brand span { color:var(--accent); }
+  nav .links a { color:var(--muted); margin-left:18px; font-size:.92rem; }
+  nav .links a:hover { color:var(--text); text-decoration:none; }
+  @media (max-width:560px){ nav .links a:not(.cta){ display:none; } }
+  .cta {
+    background:var(--accent); color:#1a1200 !important; padding:7px 14px; border-radius:7px;
+    font-weight:600;
+  }
+  .cta:hover { text-decoration:none; filter:brightness(1.07); }
+
+  /* hero */
+  header.hero {
+    position:relative; padding:76px 0 64px; text-align:center; overflow:hidden;
+    border-bottom:1px solid var(--border);
+  }
+  header.hero::before {
+    content:""; position:absolute; inset:0;
+    background:
+      linear-gradient(180deg, rgba(13,17,23,.72), rgba(13,17,23,.94)),
+      url("assets/hero.png") center/cover no-repeat;
+    opacity:.9;
+  }
+  header.hero .wrap { position:relative; }
+  .pill {
+    display:inline-block; font-size:.78rem; font-weight:600; letter-spacing:.03em;
+    color:var(--amber); border:1px solid var(--amber); border-radius:999px;
+    padding:4px 12px; margin-bottom:22px; text-transform:uppercase;
+  }
+  header.hero h1 { font-size:clamp(2rem,6vw,3.3rem); margin:0 0 14px; }
+  header.hero .tag { font-size:clamp(1.05rem,2.6vw,1.35rem); color:var(--text); max-width:640px; margin:0 auto 10px; }
+  header.hero .sub { color:var(--muted); max-width:620px; margin:0 auto 30px; }
+  .btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .btn {
+    padding:11px 20px; border-radius:8px; font-weight:600; border:1px solid var(--border);
+    background:var(--panel); color:var(--text);
+  }
+  .btn:hover { text-decoration:none; border-color:var(--accent); }
+  .btn.primary { background:var(--accent); color:#1a1200; border-color:var(--accent); }
+
+  /* sections */
+  section { padding:56px 0; border-bottom:1px solid var(--border); }
+  section h2 { font-size:1.7rem; margin:0 0 8px; }
+  section .lead { color:var(--muted); margin:0 0 28px; max-width:680px; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:center; }
+  @media (max-width:720px){ .grid2 { grid-template-columns:1fr; } }
+
+  /* mechanism diagram */
+  .diagram { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .diagram figcaption { color:var(--muted); font-size:.86rem; margin-top:10px; text-align:center; }
+  .state-label { fill:var(--muted); font:600 11px sans-serif; letter-spacing:.04em; }
+
+  /* safety table */
+  table { width:100%; border-collapse:collapse; font-size:.94rem; }
+  th,td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  td b { color:var(--text); }
+
+  /* cards */
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  @media (max-width:720px){ .cards { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .card h3 { margin:0 0 6px; font-size:1.05rem; }
+  .card p { margin:0; color:var(--muted); font-size:.93rem; }
+  .card .kbd { color:var(--accent); font-weight:600; }
+
+  .note {
+    background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--amber);
+    border-radius:8px; padding:16px 18px; color:var(--muted); font-size:.94rem;
+  }
+  .note b { color:var(--text); }
+
+  footer { padding:40px 0; text-align:center; color:var(--muted); font-size:.9rem; }
+  footer a { color:var(--muted); }
+  .tools { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .tool { background:var(--panel); border:1px solid var(--border); border-radius:7px; padding:6px 12px; font-size:.88rem; color:var(--muted); }
+  .tool b { color:var(--text); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">Hive<span>Cell</span></div>
+    <div class="links">
+      <a href="#what">What</a>
+      <a href="#safety">Safety</a>
+      <a href="#open">Open source</a>
+      <a href="#help">Help</a>
+      <a class="cta" href="https://github.com/StrayEddy/HiveCell">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="pill">Design + simulation · uncertified research</div>
+    <h1>Safe-by-design public sleeping infrastructure</h1>
+    <p class="tag">One clean, safe overnight sleeping cell, recessed in a wall. When idle it retracts flush and moves the sleeping surface into a hidden bay to be automatically cleaned.</p>
+    <p class="sub">An open-source hardware project. A powered machine that must fail safe around a sleeping, vulnerable person — so safety is the first design constraint, worked in the open.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/StrayEddy/HiveCell">View the project on GitHub</a>
+      <a class="btn" href="#help">How to help</a>
+    </div>
+  </div>
+</header>
+
+<section id="what">
+  <div class="wrap">
+    <div class="grid2">
+      <div>
+        <h2>A single moving part — a true syringe</h2>
+        <p class="lead">A piston slides inside a fixed tube. Retracted, its face is the floor and back of an open sleeping capsule. Advanced, its own face becomes the flush public wall — there is no separate door. The same sweep clears the cell and seals it on the hidden service side for cleaning.</p>
+        <p style="color:var(--muted)">Priorities, in order: vandal resistance, hygiene, reliability, low maintenance, low energy, low cost, simplicity, easy servicing, long life. Comfort is deliberately low priority.</p>
+      </div>
+      <figure class="diagram" style="margin:0">
+        <svg viewBox="0 0 400 210" width="100%" role="img" aria-label="Mechanism: available vs flush">
+          <!-- AVAILABLE -->
+          <text x="12" y="18" class="state-label">AVAILABLE — open sleeping cell</text>
+          <!-- fixed barrel -->
+          <rect x="12" y="28" width="376" height="62" rx="10" fill="#11161d" stroke="#3a4450" stroke-width="2"/>
+          <!-- piston deep at right -->
+          <rect x="300" y="34" width="82" height="50" rx="4" fill="#8b9299"/>
+          <!-- sleeping surface / cavity -->
+          <rect x="24" y="72" width="270" height="10" rx="3" fill="#22303f"/>
+          <text x="150" y="58" text-anchor="middle" fill="#9aa4b2" font-size="11" font-style="italic">sleeping cavity</text>
+          <text x="341" y="63" text-anchor="middle" fill="#0d1117" font-size="10" font-weight="700">PISTON</text>
+          <!-- mouth arrow -->
+          <text x="18" y="104" fill="#9aa4b2" font-size="10">◄ public opening</text>
+
+          <!-- FLUSH -->
+          <text x="12" y="140" class="state-label">FLUSH — retracted, self-cleaning</text>
+          <rect x="12" y="150" width="376" height="52" rx="10" fill="#11161d" stroke="#3a4450" stroke-width="2"/>
+          <!-- piston forward at left, face flush -->
+          <rect x="16" y="156" width="82" height="40" rx="4" fill="#8b9299"/>
+          <text x="57" y="180" text-anchor="middle" fill="#0d1117" font-size="10" font-weight="700">PISTON</text>
+          <!-- service bay to the right -->
+          <text x="250" y="178" text-anchor="middle" fill="#9aa4b2" font-size="11">hidden cleaning bay ►</text>
+          <!-- flush face marker -->
+          <line x1="16" y1="150" x2="16" y2="202" stroke="#f0a35e" stroke-width="2"/>
+        </svg>
+        <figcaption>The piston is the only moving part: floor when open, flush wall when closed.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="safety">
+  <div class="wrap">
+    <h2>Safety is the whole problem</h2>
+    <p class="lead">This machine moves a powered steel piston through a space a person occupies — and users are assumed <b>vulnerable</b> (asleep, intoxicated, unwell) and unable to self-rescue. The design principle is <b>PREVENT</b> (never move while occupied) → <b>REACT</b> (stop &amp; reverse on contact) → fail safe. “Push the occupant out” is not a mode the machine can enter.</p>
+    <table>
+      <thead><tr><th>Safety function</th><th>Approach</th></tr></thead>
+      <tbody>
+        <tr><td><b>SF1 — Occupancy detection</b></td><td>Diverse-redundant suite (radar vitals + thermal + CO₂ + load/BCG), fail-safe voting, target ISO 13849 <b>PL e</b>. Any presence or any sensor fault ⇒ assume occupied.</td></tr>
+        <tr><td><b>SF2 — Contact-force cap</b></td><td>Independent force-limit trip that stops and reverses the sweep — works even if SF1 is blind.</td></tr>
+        <tr><td><b>SF3 — Wiper seal</b></td><td>Fills the running gap and scrapes the bore clean each sweep (hygiene + gap-safety).</td></tr>
+        <tr><td><b>SF4 — Fail-open drive</b></td><td>Back-drivable, with a return spring that biases the pod <b>open</b> — power loss relieves a trapped occupant.</td></tr>
+        <tr><td><b>SF5 — Soft motion + signalling</b></td><td>Gentle velocity profile and clear state lights (ready / moving / closed / alarm).</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:22px" class="note"><b>Honest status:</b> this is <b>design and first-order simulation only</b> — no built hardware, no physical validation, and no safety certification yet. It is published as research to be scrutinised and built upon, not deployed. See the safety notice in the repository.</p>
+  </div>
+</section>
+
+<section id="open">
+  <div class="wrap">
+    <h2>Built in the open</h2>
+    <p class="lead">Every design decision is recorded as an ADR, the mechanism is parametric CAD (the source of truth), and the safety logic is a real, headless-testable state machine — its core invariant (<i>the sweep never advances while life is detected</i>) is enforced by a self-test that gates every push.</p>
+    <div class="tools">
+      <span class="tool"><b>FreeCAD</b> · parametric mechanical design</span>
+      <span class="tool"><b>Godot</b> · motion simulation &amp; digital twin</span>
+      <span class="tool"><b>Blender</b> · rendering</span>
+      <span class="tool"><b>ISO 13849</b> · functional-safety target</span>
+    </div>
+    <p style="margin-top:24px">
+      <a href="https://github.com/StrayEddy/HiveCell/blob/main/docs/SAFETY.md">Safety analysis</a> ·
+      <a href="https://github.com/StrayEddy/HiveCell/blob/main/docs/DECISIONS.md">Decision log (ADRs)</a> ·
+      <a href="https://github.com/StrayEddy/HiveCell/blob/main/LICENSE">Licensing &amp; safety notice</a>
+    </p>
+  </div>
+</section>
+
+<section id="help">
+  <div class="wrap">
+    <h2>How to help</h2>
+    <p class="lead">This is a solo, open project. The fastest way to move it forward is hands and scrutiny — most of the next steps need a workbench, not a budget.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Measure the seal drag</h3>
+        <p>The single biggest unknown, and a <span class="kbd">~$200</span> bench test. It unblocks the actuator, spring, and drive decisions. A fully-specified procedure is in the repo — the top first contribution.</p>
+      </div>
+      <div class="card">
+        <h3>Review the safety case</h3>
+        <p>Independent eyes on the FMEA and the five safety functions. If you work in machine safety or ISO 13849, your read is invaluable.</p>
+      </div>
+      <div class="card">
+        <h3>Prototype SF1 sensing</h3>
+        <p>Help breadboard the diverse-redundant occupancy suite — radar vitals, thermal, CO₂, load/BCG — the primary safeguard.</p>
+      </div>
+    </div>
+    <div class="btns" style="justify-content:flex-start; margin-top:26px">
+      <a class="btn primary" href="https://github.com/StrayEddy/HiveCell/blob/main/CONTRIBUTING.md">Read CONTRIBUTING</a>
+      <a class="btn" href="https://github.com/StrayEddy/HiveCell/issues">Open an issue</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    HiveCell — open-source hardware research. Hardware CERN-OHL-S, docs CC-BY-4.0, code Apache-2.0.<br>
+    <a href="https://github.com/StrayEddy/HiveCell">github.com/StrayEddy/HiveCell</a> · uncertified · not for deployment as-is
+  </div>
+</footer>
+
+</body>
+</html>
