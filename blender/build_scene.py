@@ -219,15 +219,38 @@ else:
 bpy.context.scene.world = world
 
 if MODE == "night":
-    # Deep, dim night: the warm crown luminaire becomes the brightest thing in
-    # frame, so it reads as a light and its glow rakes across the stainless.
+    # Night: the warm crown luminaire is the hero source, but the EXTERIOR is lit by
+    # a night-street HDRI (streetlamp spill + real reflections on the stainless) so it
+    # doesn't read as dead-black. Camera rays still see a dark backdrop, so the busy
+    # station photo doesn't sit behind the cell — only its light + reflections do.
     nworld = bpy.data.worlds.new("W_night")
     nworld.use_nodes = True
-    nbg = nworld.node_tree.nodes["Background"]
-    nbg.inputs[0].default_value = (0.02, 0.026, 0.04, 1.0)   # cool near-black
-    nbg.inputs[1].default_value = 0.22                       # enough ambient to read the form
+    wnn = nworld.node_tree
+    nbg = wnn.nodes["Background"]
+    NIGHT_HDRI = os.path.join(ROOT, "blender", "hdri", "night_street.hdr")
+    DARK = (0.02, 0.026, 0.04, 1.0)
+    if os.path.exists(NIGHT_HDRI):
+        env = wnn.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(NIGHT_HDRI)
+        mapp = wnn.nodes.new("ShaderNodeMapping")
+        texc = wnn.nodes.new("ShaderNodeTexCoord")
+        mapp.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(200))  # aim lamps
+        wnn.links.new(texc.outputs["Generated"], mapp.inputs["Vector"])
+        wnn.links.new(mapp.outputs["Vector"], env.inputs["Vector"])
+        lp = wnn.nodes.new("ShaderNodeLightPath")
+        mix = wnn.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        mix.inputs[7].default_value = DARK                  # camera backdrop: dark
+        wnn.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+        wnn.links.new(env.outputs["Color"], mix.inputs[6])  # lighting/reflection: HDRI
+        wnn.links.new(mix.outputs[2], nbg.inputs[0])
+        nbg.inputs[1].default_value = 0.2                   # low: reflections, matte stays dark
+        print("world: night street HDRI (exterior lit, dark camera backdrop)")
+    else:
+        nbg.inputs[0].default_value = DARK
+        nbg.inputs[1].default_value = 0.22
+        print("world: night flat dark (run scripts/fetch_assets.sh for the street HDRI)")
     bpy.context.scene.world = nworld
-    print("world: night (dark) — luminaire is the hero source")
 
 
 def area_light(name, loc, energy, size, target):
@@ -296,7 +319,7 @@ except Exception:
     pass
 sc.render.resolution_x = 1792
 sc.render.resolution_y = 1008
-sc.render.film_transparent = False
+sc.render.film_transparent = (MODE == "night")   # night: world backdrop -> black, HDRI still lights
 sc.view_settings.view_transform = "AgX"
 sc.view_settings.exposure = -0.15 if MODE == "night" else 0.0
 os.makedirs(os.path.dirname(OUT_PREVIEW), exist_ok=True)

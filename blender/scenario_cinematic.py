@@ -369,18 +369,52 @@ def set_night():
     amber) then reads as the light of the cell itself — the safety story, at night."""
     nworld = bpy.data.worlds.new("W_night")
     nworld.use_nodes = True
-    nbg = nworld.node_tree.nodes["Background"]
-    nbg.inputs[0].default_value = (0.025, 0.03, 0.045, 1.0)   # cool near-black sky
-    nbg.inputs[1].default_value = 0.32                        # ambient enough to read the form
+    wnn = nworld.node_tree
+    nbg = wnn.nodes["Background"]
+    NIGHT_HDRI = os.path.join(ROOT, "blender", "hdri", "night_street.hdr")
+    DARK = (0.025, 0.03, 0.045, 1.0)
+    if os.path.exists(NIGHT_HDRI):
+        # Night-street HDRI lights the exterior (streetlamp spill + reflections on the
+        # stainless); camera rays keep a dark backdrop so the frame stays moody.
+        env = wnn.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(NIGHT_HDRI)
+        mapp = wnn.nodes.new("ShaderNodeMapping")
+        texc = wnn.nodes.new("ShaderNodeTexCoord")
+        mapp.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(200))
+        wnn.links.new(texc.outputs["Generated"], mapp.inputs["Vector"])
+        wnn.links.new(mapp.outputs["Vector"], env.inputs["Vector"])
+        lp = wnn.nodes.new("ShaderNodeLightPath")
+        mix = wnn.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        mix.inputs[7].default_value = DARK
+        wnn.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+        wnn.links.new(env.outputs["Color"], mix.inputs[6])
+        wnn.links.new(mix.outputs[2], nbg.inputs[0])
+        nbg.inputs[1].default_value = 0.18                   # low: reflections on the steel, matte stays dark
+    else:
+        nbg.inputs[0].default_value = DARK
+        nbg.inputs[1].default_value = 0.32
     sc.world = nworld
     k = bpy.data.objects.get("Key")
     if k:
-        k.data.energy = 22.0                                 # faint cool fill (shape only)
+        k.data.energy = 18.0                                 # faint cool fill (shape only)
     s = bpy.data.objects.get("Sun")
     if s:
         s.data.energy = 0.5
         s.data.color = (0.55, 0.70, 1.0)                     # moon rim
-    for nm, rgb in (("Floor", (0.04, 0.045, 0.06)), ("Wall", (0.11, 0.11, 0.14))):
+    # Warm streetlamp accent: a directional warm pool on the exterior wall + a glint on
+    # the stainless — the "lit by a street lamp at night" read (HDRI ambient is too flat
+    # to give it on its own). Aimed at the cell via the shared focus empty.
+    bpy.ops.object.light_add(type="AREA", location=(MOUTH_X - 3.4, -2.8, 2.4))
+    lamp = bpy.context.active_object
+    lamp.name = "StreetLamp"
+    lamp.data.size = 1.8
+    lamp.data.energy = 260.0
+    lamp.data.color = (1.0, 0.72, 0.42)                      # warm sodium/tungsten
+    fc = bpy.data.objects.get("Focus")
+    if fc:
+        lamp.constraints.new("TRACK_TO").target = fc
+    for nm, rgb in (("Floor", (0.03, 0.03, 0.04)), ("Wall", (0.07, 0.07, 0.09))):
         m = bpy.data.materials.get(nm)
         if m and principled(m):
             principled(m).inputs["Base Color"].default_value = (*rgb, 1.0)
@@ -515,6 +549,10 @@ else:
     except Exception:
         pass
 
+# Night: the HDRI lights + reflects on the exterior, but don't draw it as a flat grey
+# backdrop (EEVEE ignores the camera-ray world trick). Transparent film -> the empty
+# surround composites to black in the mp4, keeping the moody night look.
+sc.render.film_transparent = NIGHT
 sc.render.image_settings.file_format = "PNG"
 sc.render.filepath = OUT
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
