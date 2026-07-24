@@ -127,18 +127,17 @@ ORANGE = (1.0, 0.55, 0.05)
 AMBER = (1.0, 0.62, 0.26)              # ADR-0014 warm night-glow (occupied / sleep-safe)
 
 
-# --- ADR-0014 interior luminaire: flush crown strip (light + status) ---------
+# --- ADR-0014 interior luminaire: flush crown panel (the ONLY interior source) ------
 def build_luminaire():
-    """Emissive strip at the bore crown running along X (from the CAD/manifest dims),
-    plus a co-located strip area light so it actually washes the interior with its
-    colour. Carries the warm night-glow + the state colour, visible through the mouth."""
+    """A single emissive diffuser panel recessed flush into the bore ceiling. In Cycles
+    this panel IS the light -- a real mesh light -- so as the piston slides under it the
+    emission is physically occluded and the bore dims on its own (no faked wash light).
+    It sits in the crown pocket cut by build_scene, so it never juts into the sweep path
+    (the wiper seal cleans across it when the cell closes, ADR-0014). Its normal faces
+    DOWN into the bore so it reads from the low camera (emission is single-sided)."""
     margin, width, crown = 0.15, 0.20, 0.55        # luminaire_end_margin / face width / crown (m)
     x0, x1 = MOUTH_X + margin, MOUTH_X + STROKE - margin
     cx, length = (x0 + x1) * 0.5, (x1 - x0)
-    # A flat diffuser panel flush with the bore ceiling, sitting in the crown pocket cut
-    # by build_scene (so it doesn't jut into the sweep path -> the wiper seal cleans across
-    # it when the cell closes, ADR-0014). Its normal faces DOWN so the panel actually
-    # reads from the low bore camera -- EEVEE emission is single-sided.
     bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 0))
     o = bpy.context.active_object
     o.name = "Luminaire"
@@ -152,38 +151,24 @@ def build_luminaire():
     em = nt.nodes.new("ShaderNodeEmission")
     nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
     o.data.materials.append(m)
-    # place the area light BELOW the emissive strip mesh, else the strip occludes its
-    # own downward emission and the bore goes dark (only exposed once external fill is
-    # removed for night). It points -Z by default, washing straight down the bore.
-    bpy.ops.object.light_add(type="AREA", location=(cx, 0.0, crown - 0.12))
-    light = bpy.context.active_object
-    light.name = "LuminaireLight"
-    light.data.shape = "RECTANGLE"
-    light.data.size = 0.20
-    light.data.size_y = length                     # a long strip light down the bore
-    return em, light
+    return em
 
 
-def key_lum(lum, frame, color, em_strength, energy):
-    # scaled up so the cell's OWN light characterises the interior (external key/sun
-    # are dimmed for scenario mode, so this reads as the dominant interior source).
-    em, light = lum
-    boost = 1.6 if NIGHT else 1.0            # night: the cell's own light must dominate
+def key_lum(em, frame, color, em_strength, energy=0.0):
+    # The recessed panel is the SOLE interior source (a Cycles mesh light), so its
+    # emission carries the whole interior -- scaled up, and doubled at night so the
+    # cell's own light dominates the dimmed exterior. `energy` is kept for call-site
+    # compatibility but is unused now that there is no separate wash light.
+    strength = em_strength * (14.0 if NIGHT else 7.0)
+    if NIGHT:
+        # Saturated colours (esp. red) carry far less luminance, so lift them a little
+        # by the colour's luma to keep every state equally legible.
+        luma = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+        strength *= min(1.8, 0.62 / max(luma, 0.30))
     em.inputs["Color"].default_value = (*color, 1.0)
     em.inputs["Color"].keyframe_insert("default_value", frame=frame)
-    em.inputs["Strength"].default_value = em_strength * 0.5 * (2.0 if NIGHT else 1.0)
+    em.inputs["Strength"].default_value = strength
     em.inputs["Strength"].keyframe_insert("default_value", frame=frame)
-    light.data.color = color
-    light.data.keyframe_insert("color", frame=frame)
-    e = energy * 6.0 * boost                                  # the wash carries the intensity
-    if NIGHT:
-        # Saturated colours (esp. red) carry far less luminance than green/amber, so a
-        # constant wattage reads dark. Compensate by the colour's luma so every state
-        # is equally legible: red ~2x, green ~1x, amber ~0.9x.
-        luma = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
-        e *= min(2.2, 0.62 / max(luma, 0.22))
-    light.data.energy = e
-    light.data.keyframe_insert("energy", frame=frame)
 
 
 # --- props -------------------------------------------------------------------
@@ -535,6 +520,9 @@ sc.render.fps = FPS
 LOWRES = os.environ.get("HC_LOWRES", "0") == "1"
 RES = (960, 540) if (DRAFT or LOWRES) else (1280, 720)
 sc.render.resolution_x, sc.render.resolution_y = RES
+# Cycles is overhead-bound on this GPU, so render the 3D at half res for speed; the HUD
+# stage in render_cinematic.sh upscales the frames to full size before burning in text.
+sc.render.resolution_percentage = int(os.environ.get("HC_RESPCT", "50"))
 
 if DRAFT:
     sc.render.engine = "BLENDER_WORKBENCH"
@@ -548,11 +536,31 @@ if DRAFT:
     sc.display.render_aa = "FXAA"
     # Workbench ignores emission/alpha; the draft is only to check motion + physics.
 else:
+    # Cycles: the recessed panel is a true mesh light, so the piston physically occludes
+    # it as the cell closes and the bore dims on its own. GPU + OpenImageDenoise; adaptive
+    # sampling + persistent data (only the piston moves) keep it fast at the low render
+    # resolution, which render_cinematic.sh upscales before burning the HUD.
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = int(os.environ.get("HC_SAMPLES", "24"))
+    sc.cycles.use_denoising = True
+    sc.cycles.use_adaptive_sampling = True         # stop early where it's already clean
+    sc.cycles.adaptive_threshold = 0.02
+    sc.render.use_persistent_data = True           # reuse BVH/sync across frames
     try:
-        sc.eevee.taa_render_samples = SAMPLES
-        sc.eevee.use_raytracing = True
-    except Exception:
-        pass
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        for backend in ("OPTIX", "CUDA", "HIP", "ONEAPI"):
+            try:
+                prefs.compute_device_type = backend
+                break
+            except TypeError:
+                continue
+        prefs.get_devices()
+        for d in prefs.devices:
+            d.use = True
+        sc.cycles.device = "GPU"
+        sc.cycles.denoiser = "OPENIMAGEDENOISE"     # OptiX denoiser weights unavailable in flatpak
+    except Exception as e:
+        print("CYCLES GPU setup failed, using CPU:", e)
 
 # Night: the HDRI lights + reflects on the exterior, but don't draw it as a flat grey
 # backdrop (EEVEE ignores the camera-ray world trick). Transparent film -> the empty

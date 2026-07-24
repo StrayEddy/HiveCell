@@ -42,8 +42,10 @@ encode_beat () {                              # $1 = beat name
   local tx="W-$((pw-28))"                     # text left edge (28px panel padding)
   local y=132                                 # top padding of the text block
   local line
-  # translucent right panel + a thin accent rule down its left edge
-  local vf="drawbox=x=iw-${pw}:y=0:w=${pw}:h=ih:color=black@0.55:t=fill"
+  # upscale the half-res Cycles frames to the 960x540 output, then draw the HUD at full
+  # size so the burned-in text stays crisp; a translucent right panel + accent rule.
+  local vf="scale=960:540:flags=lanczos"
+  vf+=",drawbox=x=iw-${pw}:y=0:w=${pw}:h=ih:color=black@0.55:t=fill"
   vf+=",drawbox=x=iw-${pw}:y=0:w=3:h=ih:color=${TCOL[$b]}@0.85:t=fill"
   local IFS='|'
   for line in ${TITLE[$b]}; do               # title block — bold, beat colour
@@ -69,7 +71,7 @@ for b in "${BEATS[@]}"; do
   if [ "${SKIP_RENDER:-0}" != "1" ]; then
     echo "rendering beat: $b"
     rm -f "$ROOT/renders/beats/$b"/*.png
-    HC_BEAT="$b" HC_DRAFT="$DRAFT" HC_LOWRES="${HC_LOWRES:-0}" HC_SAMPLES="${HC_SAMPLES:-4}" \
+    HC_BEAT="$b" HC_DRAFT="$DRAFT" HC_LOWRES="${HC_LOWRES:-1}" HC_SAMPLES="${HC_SAMPLES:-24}" \
         HC_NIGHT="${HC_NIGHT:-1}" \
         flatpak run --filesystem="$ROOT" \
         org.blender.Blender --background "$ROOT/blender/hivecell.blend" \
