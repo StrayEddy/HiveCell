@@ -211,7 +211,6 @@ lum_wid = S["luminaire_width_m"]
 lum_cx = S["mouth_x_m"] + lum_margin + lum_len * 0.5
 lum_y = (ymin + ymax) * 0.5
 lum_face_wid = 0.20                             # emitting-panel width (reads from the bore)
-lum_thick = t                                   # fills the crown wall depth exactly
 z_ceil = zmax - t                               # bore ceiling (inner crown surface)
 # Cut a pocket THROUGH the crown wall over the luminaire footprint, then inset the
 # panel so its emitting face is level with the ceiling and its body fills the pocket
@@ -223,23 +222,25 @@ pocket = cutbox("LumPocketCut",
                 (lum_len + 2 * lum_reveal, lum_face_wid + 2 * lum_reveal, 0.2),
                 (lum_cx, lum_y, zmax))
 boolean_diff(bpy.data.objects["CapsuleShell"], pocket)
-lum_z = z_ceil + lum_thick * 0.5                # bottom flush at ceiling, top at zmax
 lum_mat = bpy.data.materials.new("Luminaire")
 lum_mat.use_nodes = True
 _lnt = lum_mat.node_tree
 _em = _lnt.nodes.new("ShaderNodeEmission")
 _em.inputs["Color"].default_value = (*AMBER, 1.0)
-_em.inputs["Strength"].default_value = 3.8 if MODE == "night" else 1.2
+_em.inputs["Strength"].default_value = 40.0 if MODE == "night" else 12.0   # sole interior source
 _lnt.links.new(_em.outputs["Emission"], _lnt.nodes["Material Output"].inputs["Surface"])
-box("Luminaire", (lum_len, lum_face_wid, lum_thick), (lum_cx, lum_y, lum_z), lum_mat)
-bpy.ops.object.light_add(type="AREA", location=(lum_cx, lum_y, lum_z - 0.03))
-lum_light = bpy.context.active_object
-lum_light.name = "LuminaireLight"
-lum_light.data.shape = "RECTANGLE"
-lum_light.data.size = 0.16
-lum_light.data.size_y = lum_len                 # a long strip light down the bore
-lum_light.data.color = AMBER
-lum_light.data.energy = 70.0 if MODE == "night" else 16.0   # points -Z, washes the bore
+# ONE luminaire: a single downward-facing emissive panel flush in the crown pocket. It
+# is the only interior source (a true Cycles mesh light), so the piston occludes it
+# naturally as the cell closes -- no separate wash light. Matches
+# scenario_cinematic.build_luminaire().
+bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 0))
+lum = bpy.context.active_object
+lum.name = "Luminaire"
+lum.scale = (lum_len, lum_face_wid, 1.0)
+lum.rotation_euler = (math.pi, 0.0, 0.0)        # normal -Z: emit into the bore
+bpy.ops.object.transform_apply(scale=True, rotation=True)
+lum.location = (lum_cx, lum_y, z_ceil)          # flush at the ceiling plane
+lum.data.materials.append(lum_mat)
 
 # --- lighting (studio 3-point + soft world) ----------------------------------
 world = bpy.data.worlds.new("W")
@@ -368,21 +369,27 @@ bpy.context.scene.camera = cam
 
 # --- render settings ---------------------------------------------------------
 sc = bpy.context.scene
-# EEVEE (fast, works great for interactive shading-view tweaking) -- the .blend
-# opens ready to work in EEVEE every time. Engine id varies by Blender version.
-engines = sc.render.bl_rna.properties["engine"].enum_items.keys()
-EEVEE = next((e for e in engines if "EEVEE" in e), "BLENDER_EEVEE_NEXT")
-sc.render.engine = EEVEE
-print("render engine:", EEVEE)
-# Raytraced reflections so the stainless still reflects the HDRI in EEVEE.
+# Cycles: the single recessed panel is a true mesh light, so the interior must render in
+# Cycles for correct emission + natural occlusion by the piston (EEVEE emissive GI is
+# screen-space and unreliable). The .blend opens in Cycles ready to work. GPU + denoise.
+sc.render.engine = "CYCLES"
+sc.cycles.samples = 96
+sc.cycles.use_denoising = True
 try:
-    sc.eevee.use_raytracing = True
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            prefs.compute_device_type = backend
+            break
+        except TypeError:
+            continue
+    prefs.get_devices()
+    for d in prefs.devices:
+        d.use = True
+    sc.cycles.device = "GPU"
+    sc.cycles.denoiser = "OPENIMAGEDENOISE"     # OptiX denoiser weights unavailable in flatpak
 except Exception as e:
-    print("eevee raytracing unavailable:", e)
-try:
-    sc.eevee.taa_render_samples = 64
-except Exception:
-    pass
+    print("cycles gpu setup failed, using cpu:", e)
 sc.render.resolution_x = 1792
 sc.render.resolution_y = 1008
 sc.render.film_transparent = (MODE == "night")   # night: world backdrop -> black, HDRI still lights
