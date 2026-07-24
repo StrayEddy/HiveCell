@@ -132,15 +132,20 @@ def build_luminaire():
     """Emissive strip at the bore crown running along X (from the CAD/manifest dims),
     plus a co-located strip area light so it actually washes the interior with its
     colour. Carries the warm night-glow + the state colour, visible through the mouth."""
-    margin, width, crown = 0.15, 0.14, 0.55        # luminaire_end_margin / width / crown (m)
+    margin, width, crown = 0.15, 0.20, 0.55        # luminaire_end_margin / face width / crown (m)
     x0, x1 = MOUTH_X + margin, MOUTH_X + STROKE - margin
     cx, length = (x0 + x1) * 0.5, (x1 - x0)
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0))
+    # A flat diffuser panel flush with the bore ceiling, sitting in the crown pocket cut
+    # by build_scene (so it doesn't jut into the sweep path -> the wiper seal cleans across
+    # it when the cell closes, ADR-0014). Its normal faces DOWN so the panel actually
+    # reads from the low bore camera -- EEVEE emission is single-sided.
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 0))
     o = bpy.context.active_object
     o.name = "Luminaire"
-    o.scale = (length, width, 0.02)
-    bpy.ops.object.transform_apply(scale=True)     # zeroes location -> set it after
-    o.location = (cx, 0.0, crown - 0.05)
+    o.scale = (length, width, 1.0)
+    o.rotation_euler = (math.pi, 0.0, 0.0)         # flip normal to -Z (emit into the bore)
+    bpy.ops.object.transform_apply(scale=True, rotation=True)
+    o.location = (cx, 0.0, crown)                  # flush at the ceiling plane
     m = bpy.data.materials.new("LuminaireMat")
     m.use_nodes = True
     nt = m.node_tree
@@ -447,10 +452,10 @@ def beat_clear():
              (1.82, -0.06, 0.28, (0.98, 0.78, 0.15))]
     items = [add_item((x, y, FLOOR_Z + s * 0.5 + 0.02), (s, s, s), c)
              for (x, y, s, c) in specs]
-    # look into the mouth, slightly elevated so the bore FLOOR (where the items sit)
-    # reads through the opening; the piston then advances toward us and fills it.
-    key_cam(1, (-4.2, -0.8, 0.75), (1.1, 0.0, -0.35))
-    key_cam(end, (-3.0, -0.5, 0.35), (1.3, 0.0, -0.42))
+    # look into the mouth from BELOW the bore ceiling, tilted up, so the recessed
+    # crown light strip reads on the ceiling while the piston sweeps the floor.
+    key_cam(1, (-4.2, -0.8, -0.10), (1.15, 0.0, 0.55))
+    key_cam(end, (-3.0, -0.5, -0.14), (1.3, 0.0, 0.52))
     # No shell reveal — looking straight through the mouth the interior is already
     # fully visible, so the steel shell stays solid.
     # piston: brief hold -> sweep to flush -> hold -> redeploy
@@ -473,8 +478,8 @@ def beat_locked():
     """A person lies inside. Life detected -> the piston never moves. Beacon alarms."""
     end = 84                              # ~3.5 s
     add_person(1.0)                       # head toward the mouth, visible through it
-    key_cam(1, (-4.2, -0.8, 0.75), (1.05, 0.0, -0.35))
-    key_cam(end, (-3.4, -0.6, 0.5), (1.1, 0.0, -0.4))
+    key_cam(1, (-4.2, -0.8, -0.10), (1.05, 0.0, 0.55))
+    key_cam(end, (-3.4, -0.6, -0.12), (1.1, 0.0, 0.52))
     key_piston(1, 0.0); key_piston(end, 0.0)         # locked: no motion
     # beacon: green -> flashing-red alarm (hard strobe) while life is present
     key_beacon(em, 1, GREEN, 2.0); key_beacon(em, 22, GREEN, 2.0)
@@ -498,8 +503,8 @@ def beat_intrude():
     for o in [person] + list(person.children):
         o.hide_render = True; o.keyframe_insert("hide_render", frame=intr - 6)
         o.hide_render = False; o.keyframe_insert("hide_render", frame=intr)
-    key_cam(1, (-4.2, -0.8, 0.75), (1.0, 0.0, -0.35))
-    key_cam(end, (-3.4, -0.6, 0.5), (0.7, 0.0, -0.4))
+    key_cam(1, (-4.2, -0.8, -0.10), (1.0, 0.0, 0.55))
+    key_cam(end, (-3.4, -0.6, -0.12), (0.7, 0.0, 0.52))
     # piston: advance toward the mouth, then reverse hard back out on intrusion
     key_piston(1, 0.0); key_piston(12, 0.0)
     key_piston(intr, -1.15)                           # mid-sweep when the arm intrudes

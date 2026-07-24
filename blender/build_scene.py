@@ -82,6 +82,27 @@ def box(name, size, center, mat):
     return o
 
 
+def cutbox(name, size, center):
+    """A plain (material-less) rectangular prism used only as a boolean cutter."""
+    bpy.ops.mesh.primitive_cube_add(size=2.0, location=center)
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = (size[0] / 2.0, size[1] / 2.0, size[2] / 2.0)
+    bpy.ops.object.transform_apply(scale=True)
+    return o
+
+
+def boolean_diff(target, cutter):
+    """Subtract cutter from target (exact solver), apply, and delete the cutter."""
+    m = target.modifiers.new(cutter.name + "_cut", "BOOLEAN")
+    m.operation = "DIFFERENCE"
+    m.solver = "EXACT"
+    m.object = cutter
+    bpy.context.view_layer.objects.active = target
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+
+
 def rounded_rect_prism(name, hw, hh, r, cz, x0, x1, seg=12):
     """A closed prism whose Y-Z cross-section is a rounded rectangle (half-width hw,
     half-height hh, corner radius r, centred on y=0 / z=cz), spanning x0..x1. Used as
@@ -177,13 +198,7 @@ wall = box("Wall", (fd, 2 * whw, wtop - floor_z), (cx, 0.0, (floor_z + wtop) * 0
 open_r = S["corner_radius_m"] + t + reveal
 cutter = rounded_rect_prism("WallOpeningCut", ohw, (ot - ob) * 0.5, open_r,
                             (ob + ot) * 0.5, cx - fd, cx + fd)
-bmod = wall.modifiers.new("opening", "BOOLEAN")
-bmod.operation = "DIFFERENCE"
-bmod.solver = "EXACT"
-bmod.object = cutter
-bpy.context.view_layer.objects.active = wall
-bpy.ops.object.modifier_apply(modifier=bmod.name)
-bpy.data.objects.remove(cutter, do_unlink=True)
+boolean_diff(wall, cutter)
 
 # --- ADR-0014 interior luminaire: warm crown strip + co-located wash light ----
 # An emissive strip at the bore crown running along X (CAD/manifest dims), plus a
@@ -195,7 +210,20 @@ lum_len = S["luminaire_length_m"]
 lum_wid = S["luminaire_width_m"]
 lum_cx = S["mouth_x_m"] + lum_margin + lum_len * 0.5
 lum_y = (ymin + ymax) * 0.5
-lum_z = zmax - 0.04                             # just under the bore crown
+lum_face_wid = 0.20                             # emitting-panel width (reads from the bore)
+lum_thick = t                                   # fills the crown wall depth exactly
+z_ceil = zmax - t                               # bore ceiling (inner crown surface)
+# Cut a pocket THROUGH the crown wall over the luminaire footprint, then inset the
+# panel so its emitting face is level with the ceiling and its body fills the pocket
+# -- a genuine recessed fixture, not a strip clipping through the shell. A small
+# reveal keeps the pocket walls off the panel faces (no z-fighting). Kept in sync with
+# scenario_cinematic.build_luminaire().
+lum_reveal = 0.03
+pocket = cutbox("LumPocketCut",
+                (lum_len + 2 * lum_reveal, lum_face_wid + 2 * lum_reveal, 0.2),
+                (lum_cx, lum_y, zmax))
+boolean_diff(bpy.data.objects["CapsuleShell"], pocket)
+lum_z = z_ceil + lum_thick * 0.5                # bottom flush at ceiling, top at zmax
 lum_mat = bpy.data.materials.new("Luminaire")
 lum_mat.use_nodes = True
 _lnt = lum_mat.node_tree
@@ -203,8 +231,8 @@ _em = _lnt.nodes.new("ShaderNodeEmission")
 _em.inputs["Color"].default_value = (*AMBER, 1.0)
 _em.inputs["Strength"].default_value = 3.8 if MODE == "night" else 1.2
 _lnt.links.new(_em.outputs["Emission"], _lnt.nodes["Material Output"].inputs["Surface"])
-box("Luminaire", (lum_len, lum_wid, 0.02), (lum_cx, lum_y, lum_z), lum_mat)
-bpy.ops.object.light_add(type="AREA", location=(lum_cx, lum_y, lum_z - 0.02))
+box("Luminaire", (lum_len, lum_face_wid, lum_thick), (lum_cx, lum_y, lum_z), lum_mat)
+bpy.ops.object.light_add(type="AREA", location=(lum_cx, lum_y, lum_z - 0.03))
 lum_light = bpy.context.active_object
 lum_light.name = "LuminaireLight"
 lum_light.data.shape = "RECTANGLE"
