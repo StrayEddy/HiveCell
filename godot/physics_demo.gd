@@ -46,9 +46,14 @@ var column_mesh: BoxMesh
 ## Interior luminaire (ADR-0014): a flush crown strip carrying the warm night-glow +
 ## state colour. From manifest; the twin builds it procedurally (like ChainColumn).
 var lum_length := 1.9      ## strip length along X
-var lum_width := 0.14      ## strip width along Z
+var lum_width := 0.14      ## CAD fixture width along Z (manifest)
+var lum_face_wid := 0.20   ## emitting-panel width that reads from the bore (matches Blender)
 var lum_margin := 0.15     ## setback from the cavity ends (X)
-var lum_crown := 0.55      ## bore crown (Y up)
+var lum_crown := 0.55      ## bore crown / ceiling plane (Y up)
+
+## Rounded-rectangle profile (mirrors the CAD capsule + Blender wall opening).
+var corner_radius := 0.125 ## CAD fillet on the 4 long corners
+var wall_thickness := 0.006
 
 var piston: AnimatableBody3D
 var spawned: Array[Node] = []
@@ -100,6 +105,8 @@ func _load_manifest() -> void:
 		lum_width = float(d.get("luminaire_width_m", lum_width))
 		lum_margin = float(d.get("luminaire_end_margin_m", lum_margin))
 		lum_crown = float(d.get("luminaire_crown_m", lum_crown))
+		corner_radius = float(d.get("corner_radius_m", corner_radius))
+		wall_thickness = float(d.get("wall_thickness_m", wall_thickness))
 
 
 # --- helpers -----------------------------------------------------------------
@@ -202,17 +209,25 @@ func _build_world() -> void:
 	# The cell is set INTO a wall at the mouth plane, mouth sill ~500 mm up.
 	_build_wall(aabb)
 
-	# ADR-0014 interior luminaire: a flush crown strip (top of the bore, running along X)
-	# carrying the warm night-glow + the state colour; visible to an occupant and through
-	# the mouth. Emissive so it reads as a light, not a lit surface. Fixed (not on the piston).
+	# ADR-0014 interior luminaire: a single emissive panel recessed FLUSH into the bore
+	# ceiling (not hanging below it), running along X, carrying the warm night-glow + the
+	# state colour. Mirrors the Blender build: widened to the emitting-face width, its face
+	# level with the crown, set into a faked shallow pocket. Fixed (not on the piston).
+	var lum_thick := 0.006
+	var lum_cx := mouth_x + lum_margin + lum_length * 0.5
+	# faked crown pocket: a shallow dark recess the panel sits in, so it reads as inset
+	var pocket_size := Vector3(lum_length + 0.03, lum_thick * 3.0, lum_face_wid + 0.03)
+	var pocket_mi := _box_mesh_inst(pocket_size, _mat(Color(0.05, 0.05, 0.06), 0.9))
+	pocket_mi.position = Vector3(lum_cx, lum_crown + lum_thick, 0.0)
+	add_child(pocket_mi)
 	var lbm := BoxMesh.new()
-	lbm.size = Vector3(lum_length, 0.02, lum_width)
+	lbm.size = Vector3(lum_length, lum_thick, lum_face_wid)
 	luminaire = MeshInstance3D.new()
 	luminaire.mesh = lbm
 	luminaire_mat = StandardMaterial3D.new()
 	luminaire_mat.emission_enabled = true
 	luminaire.material_override = luminaire_mat
-	luminaire.position = Vector3(mouth_x + lum_margin + lum_length * 0.5, lum_crown - 0.03, 0.0)
+	luminaire.position = Vector3(lum_cx, lum_crown - lum_thick * 0.5, 0.0)   # face flush at the crown
 	add_child(luminaire)
 
 	# Lights + environment.
@@ -253,31 +268,60 @@ func _build_world() -> void:
 
 
 func _build_wall(aabb: AABB) -> void:
-	# The cell is set INTO a wall: a facade at the mouth plane with a rectangular
-	# opening framing the barrel, the sill `sill_height` above the ground. Built as
-	# a 4-bar picture frame (bottom spandrel + head + two jambs), each a StaticBody
-	# so ejected items can't tunnel through. Opening sized from the shell AABB.
+	# The cell is set INTO a wall: a facade at the mouth plane with a ROUNDED-rectangle
+	# opening that hugs the capsule's filleted corners (mirrors the Blender boolean), the
+	# sill `sill_height` above the ground. Built as a CSG panel minus a rounded-rect cutter,
+	# with collision so ejected items can't tunnel. Opening sized from the shell AABB.
 	var reveal := 0.03
 	var ob := aabb.position.y - reveal                    # opening bottom (barrel outer)
 	var ot := aabb.position.y + aabb.size.y + reveal      # opening top
 	var ohw := aabb.size.z * 0.5 + reveal                 # opening half-width (Z)
+	var ohh := (ot - ob) * 0.5                            # opening half-height (Y)
 	var whw := ohw + 2.4                                  # wall half-span (Z)
 	var wtop := ot + 1.4                                  # wall top (Y)
 	var fd := 0.25                                         # facade depth: X in [mouth_x, +fd]
 	var cx := mouth_x + fd * 0.5
+	# opening corner radius = cell OUTER fillet (corner_radius + wall) + the reveal gap
+	var open_r: float = corner_radius + wall_thickness + reveal
 	# Semi-transparent so it still reads as the wall the cell is set into, but never
 	# hides the mouth, the mechanism, or items falling clear in front of it.
 	var mat := _mat(Color(0.42, 0.44, 0.47), 0.9, 0.0, 0.28)
 
-	# bottom spandrel (ground -> sill): the ~500 mm wall directly under the mouth
-	_static_box(Vector3(fd, ob - ground_y, 2.0 * whw), Vector3(cx, (ground_y + ob) * 0.5, 0.0), mat)
-	# head (above the opening)
-	_static_box(Vector3(fd, wtop - ot, 2.0 * whw), Vector3(cx, (ot + wtop) * 0.5, 0.0), mat)
-	# jambs (either side of the opening)
-	var jh := ot - ob
-	var jw := whw - ohw
-	_static_box(Vector3(fd, jh, jw), Vector3(cx, (ob + ot) * 0.5, -(ohw + whw) * 0.5), mat)
-	_static_box(Vector3(fd, jh, jw), Vector3(cx, (ob + ot) * 0.5, (ohw + whw) * 0.5), mat)
+	var combiner := CSGCombiner3D.new()
+	combiner.use_collision = true
+	combiner.material_override = mat
+	var panel := CSGBox3D.new()                           # solid facade: ground -> wall top
+	panel.size = Vector3(fd, wtop - ground_y, 2.0 * whw)
+	panel.position = Vector3(cx, (ground_y + wtop) * 0.5, 0.0)
+	combiner.add_child(panel)
+	var cutter := _rounded_rect_csg(ohw, ohh, open_r, fd + 0.2)
+	cutter.operation = CSGShape3D.OPERATION_SUBTRACTION
+	cutter.position = Vector3(cx, (ob + ot) * 0.5, 0.0)
+	combiner.add_child(cutter)
+	add_child(combiner)
+
+
+func _rounded_rect_csg(hw: float, hh: float, r: float, depth: float) -> CSGCombiner3D:
+	# A rounded-rectangle prism (axis along X): a cross of two boxes unioned with a cylinder
+	# at each of the four corners. Used to cut the wall opening so it matches the capsule.
+	r = minf(r, minf(hw, hh))
+	var c := CSGCombiner3D.new()
+	var bx := CSGBox3D.new()
+	bx.size = Vector3(depth, 2.0 * (hh - r), 2.0 * hw)
+	c.add_child(bx)
+	var by := CSGBox3D.new()
+	by.size = Vector3(depth, 2.0 * hh, 2.0 * (hw - r))
+	c.add_child(by)
+	for sy in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var cyl := CSGCylinder3D.new()
+			cyl.radius = r
+			cyl.height = depth
+			cyl.sides = 20
+			cyl.rotation = Vector3(0.0, 0.0, PI * 0.5)    # height axis Y -> along X
+			cyl.position = Vector3(0.0, sy * (hh - r), sz * (hw - r))
+			c.add_child(cyl)
+	return c
 
 
 func _update_chain() -> void:
