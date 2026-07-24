@@ -82,6 +82,34 @@ def box(name, size, center, mat):
     return o
 
 
+def rounded_rect_prism(name, hw, hh, r, cz, x0, x1, seg=12):
+    """A closed prism whose Y-Z cross-section is a rounded rectangle (half-width hw,
+    half-height hh, corner radius r, centred on y=0 / z=cz), spanning x0..x1. Used as
+    a boolean cutter so the wall opening hugs the cell's filleted corners."""
+    r = min(r, hw, hh)
+    corners = [( hw - r,  hh - r,   0.0),      # top-right
+               (-(hw - r), hh - r,  90.0),      # top-left
+               (-(hw - r), -(hh - r), 180.0),   # bottom-left
+               ( hw - r, -(hh - r), 270.0)]     # bottom-right
+    outline = []
+    for cyk, czk, a0 in corners:
+        for i in range(seg + 1):
+            a = math.radians(a0 + 90.0 * i / seg)
+            outline.append((cyk + r * math.cos(a), czk + r * math.sin(a)))
+    n = len(outline)
+    verts = [(x0, y, cz + z) for (y, z) in outline] + \
+            [(x1, y, cz + z) for (y, z) in outline]
+    faces = [(i, (i + 1) % n, (i + 1) % n + n, i + n) for i in range(n)]  # sides
+    faces.append(tuple(range(n)))                    # near cap
+    faces.append(tuple(range(2 * n - 1, n - 1, -1)))  # far cap
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    return o
+
+
 def import_part(part, mat):
     bpy.ops.wm.obj_import(filepath=os.path.join(MODELS, part + ".obj"),
                           up_axis="Z", forward_axis="Y")
@@ -142,10 +170,20 @@ whw = ohw + 1.6                         # wall half-span (Y) -- a wall segment, 
 wtop = ot + 1.0                         # wall top (Z)
 fd = 0.25                               # facade depth (X in [mouth, +fd])
 cx = S["mouth_x_m"] + fd * 0.5
-box("Wall_spandrel", (fd, 2 * whw, ob - floor_z), (cx, 0.0, (floor_z + ob) * 0.5), mat_wall)
-box("Wall_head", (fd, 2 * whw, wtop - ot), (cx, 0.0, (ot + wtop) * 0.5), mat_wall)
-box("Wall_jambL", (fd, whw - ohw, ot - ob), (cx, -(ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
-box("Wall_jambR", (fd, whw - ohw, ot - ob), (cx, (ohw + whw) * 0.5, (ob + ot) * 0.5), mat_wall)
+# Solid facade panel, then cut a rounded-rectangle opening whose corners match the
+# cell's filleted outer profile (radius = cornerRadius + wallThickness) plus the
+# reveal gap -- so the wall sits flush around the rounded capsule, no square gaps.
+wall = box("Wall", (fd, 2 * whw, wtop - floor_z), (cx, 0.0, (floor_z + wtop) * 0.5), mat_wall)
+open_r = S["corner_radius_m"] + t + reveal
+cutter = rounded_rect_prism("WallOpeningCut", ohw, (ot - ob) * 0.5, open_r,
+                            (ob + ot) * 0.5, cx - fd, cx + fd)
+bmod = wall.modifiers.new("opening", "BOOLEAN")
+bmod.operation = "DIFFERENCE"
+bmod.solver = "EXACT"
+bmod.object = cutter
+bpy.context.view_layer.objects.active = wall
+bpy.ops.object.modifier_apply(modifier=bmod.name)
+bpy.data.objects.remove(cutter, do_unlink=True)
 
 # --- ADR-0014 interior luminaire: warm crown strip + co-located wash light ----
 # An emissive strip at the bore crown running along X (CAD/manifest dims), plus a
