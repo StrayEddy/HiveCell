@@ -18,28 +18,48 @@ FPS=24
 DRAFT="${HC_DRAFT:-0}"
 BEATS=(clear locked intrude)
 
-# Per-beat HUD text (no ':' or ',' — they are ffmpeg drawtext metacharacters).
-declare -A TITLE STAT1 STAT2 TCOL
-TITLE[clear]="CLEARING SWEEP  —  pod proven empty"
-STAT1[clear]="SF1 life detection  ·  clear"
-STAT2[clear]="the piston sweeps loose items out the mouth — they fall clear"
-TCOL[clear]="0x8CE0A0"                       # green: safe / ready
-TITLE[locked]="SOMEONE INSIDE  —  motion LOCKED"
-STAT1[locked]="SF1 life detection  ·  DETECTED"
-STAT2[locked]="the machine holds still and alerts a human — it never pushes"
-TCOL[locked]="0xFF7A6E"                       # red: life present
-TITLE[intrude]="INTRUSION MID-SWEEP  —  STOP & REVERSE"
-STAT1[intrude]="SF2 force cap + SF1 trip  ·  sweep aborted"
-STAT2[intrude]="the piston backs out to the safe deployed pose"
+# Per-beat HUD text laid out as a vertical panel on the RIGHT of the frame, so the
+# centre of the render (the cell, full height) stays clear. Lines are pre-wrapped
+# with '|' since ffmpeg drawtext does not wrap; each field is one panel line.
+# (No ':' or ',' — they are ffmpeg drawtext metacharacters.)
+declare -A TITLE STAT BODY TCOL
+TITLE[clear]="CLEARING SWEEP|pod proven empty"
+STAT[clear]="SF1 life detection  ·  clear"
+BODY[clear]="the piston sweeps loose|items out the mouth —|they fall clear"
+TCOL[clear]="0x8CE0A0"                        # green: safe / ready
+TITLE[locked]="SOMEONE INSIDE|motion LOCKED"
+STAT[locked]="SF1 life detection  ·  DETECTED"
+BODY[locked]="the machine holds still|and alerts a human —|it never pushes"
+TCOL[locked]="0xFF7A6E"                        # red: life present
+TITLE[intrude]="INTRUSION MID-SWEEP|STOP & REVERSE"
+STAT[intrude]="SF2 force cap + SF1 trip|sweep aborted"
+BODY[intrude]="the piston backs out|to the safe deployed pose"
 TCOL[intrude]="0xFF7A6E"
 
 encode_beat () {                              # $1 = beat name
   local b="$1" frames="$ROOT/renders/beats/$1" seg="$ROOT/renders/beats/$1.mp4"
-  local band=118
-  local vf="drawbox=x=0:y=0:w=iw:h=${band}:color=black@0.5:t=fill"
-  vf+=",drawtext=fontfile=${FONTB}:text='${TITLE[$b]}':x=30:y=24:fontsize=30:fontcolor=${TCOL[$b]}"
-  vf+=",drawtext=fontfile=${FONT}:text='${STAT1[$b]}':x=30:y=66:fontsize=19:fontcolor=0xD2DAE4"
-  vf+=",drawtext=fontfile=${FONT}:text='${STAT2[$b]}':x=30:y=90:fontsize=19:fontcolor=0xAEB8C4"
+  local pw=356                                # right-panel width (px)
+  local tx="W-$((pw-28))"                     # text left edge (28px panel padding)
+  local y=132                                 # top padding of the text block
+  local line
+  # translucent right panel + a thin accent rule down its left edge
+  local vf="drawbox=x=iw-${pw}:y=0:w=${pw}:h=ih:color=black@0.55:t=fill"
+  vf+=",drawbox=x=iw-${pw}:y=0:w=3:h=ih:color=${TCOL[$b]}@0.85:t=fill"
+  local IFS='|'
+  for line in ${TITLE[$b]}; do               # title block — bold, beat colour
+    vf+=",drawtext=fontfile=${FONTB}:text='${line}':x=${tx}:y=${y}:fontsize=24:fontcolor=${TCOL[$b]}"
+    y=$((y+35))
+  done
+  y=$((y+18))
+  for line in ${STAT[$b]}; do                 # status block — bright grey
+    vf+=",drawtext=fontfile=${FONT}:text='${line}':x=${tx}:y=${y}:fontsize=18:fontcolor=0xD2DAE4"
+    y=$((y+27))
+  done
+  y=$((y+14))
+  for line in ${BODY[$b]}; do                 # explanatory body — dim grey
+    vf+=",drawtext=fontfile=${FONT}:text='${line}':x=${tx}:y=${y}:fontsize=18:fontcolor=0xAEB8C4"
+    y=$((y+27))
+  done
   ffmpeg -y -framerate $FPS -i "$frames/f_%04d.png" -vf "$vf" \
       -c:v libx264 -pix_fmt yuv420p -crf 18 "$seg" >/dev/null 2>&1
   echo "  encoded $seg"
