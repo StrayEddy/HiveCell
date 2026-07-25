@@ -81,6 +81,7 @@ the certification dossiers (ISO 13849 PL e for SF1; force/injury data for SF2).
 - `blender/` — rendering assets (later)
 - `docs/DECISIONS.md` — engineering decision log (read this first)
 - `docs/SAFETY.md`   — machine-safety analysis (hazards + safety functions)
+- `docs/ROADMAP.md`  — prioritized roadmap, indexing the [GitHub Issues](https://github.com/StrayEddy/HiveCell/issues)
 
 ## Setup
 
