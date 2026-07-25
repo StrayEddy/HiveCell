@@ -1,19 +1,27 @@
 """HiveCell narrative cinematic -- "One Night" (greybox animatic, Phase 1).
 
-A single day-in-the-life story that REPLACES the old 3-beat safety reel as the
-website hero video (see docs/ROADMAP.md / the cinematic storyboard). Arc:
+A wordless day-in-the-life piece that REPLACES the old 3-beat safety reel as the
+website hero video. TWO CAMERAS ONLY -- the wall is the protagonist, not any one
+person:
 
-  dusk  -> a person arrives at a wall of cells and lies down to sleep
-  night -> the cell holds still, warm amber glow: it knows someone is inside
-  dawn  -> he leaves (a bit of litter behind); the cell verifies it is empty,
-           then the piston sweeps it clean, becomes flush wall, and reopens ready.
+  S1  THE LIVING WALL (~20s, wide)
+      One wide, slowly drifting frame that favours no cell. Life happens in
+      parallel: pedestrians pass on the street, sleepers glow amber, someone
+      sits on a sill, a resident gets up and leaves and their cell sweeps
+      closed for cleaning, while a finished cell reopens ready.
 
-Wordless; one warm end card is burned in at assembly time (render_narrative.sh).
+  S2  THE PASS (~22s, close tracking)
+      A close lateral dolly glides along the face of the wall -- past open
+      bores, closed faces, the person sitting in theirs -- and eases to a stop
+      at one cell just as its occupant wakes, leaves, and the piston sweeps
+      the cell clean behind them.
+
+One warm end card is burned in at assembly time (render_narrative.sh).
 
 PHASE 1 = GREYBOX: blocking + timing + camera only, rendered in Workbench draft
 (near-instant) so we can lock the edit before spending Cycles time on lighting
-(Phase 2), the real character + materials (Phase 3), and the final render (Phase 4).
-Everything here is deliberately crude: capsule people, flat-lit neighbour cells.
+(Phase 2), the real characters + materials (Phase 3), and the final render
+(Phase 4). Everything here is deliberately crude: capsule people, flat lighting.
 
 Run one pass headless on the built hero cell:
   HC_DRAFT=1 flatpak run --filesystem=<repo> org.blender.Blender \
@@ -24,6 +32,11 @@ Env:
   HC_DRAFT=1   Workbench (fast greybox)   HC_DRAFT=0  Cycles (later phases)
   HC_STEP=N    render every Nth frame (quick preview of the whole timeline)
   HC_STILL="120,600"  render just those frames as stills (fastest look check)
+  HC_SAVE=<path>      build the scene + animation, save it as a .blend and do
+                      NOT render -- the baked file is for hand-editing in
+                      Blender (from then on that file is the source of truth;
+                      re-running this script regenerates from scratch and will
+                      not contain manual edits)
 """
 import bpy
 import os
@@ -60,7 +73,7 @@ GROUND_Z = bbox("Ground")[5]        # top of the exterior ground (~ -1.05)
 
 CORNER_R = 0.131                    # cell outer corner radius (cavity 0.125 + wall, scene.json)
 PITCH = 2 * OPEN_HW + 0.30          # cell-to-cell spacing (tight piers -> cells close together)
-N_SIDE = 3                          # cells each side of the hero -> 7 total
+N_SIDE = 4                          # cells each side of the hero -> 9 total
 WALL_TOP = sh[5] + 1.15             # facade top (Z)
 FACADE_D = 0.25                     # facade depth in X (mouth .. +FACADE_D)
 
@@ -99,15 +112,6 @@ def box(name, size, center, mat=None):
         o.data.materials.append(mat)
     return o
 
-def cutbox(name, size, center):
-    bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
-    o = bpy.context.active_object
-    o.name = name
-    o.scale = (size[0] / 2.0, size[1] / 2.0, size[2] / 2.0)
-    bpy.ops.object.transform_apply(scale=True)
-    o.location = center
-    return o
-
 def rounded_rect_prism(name, hw, hh, r, cz, x0, x1, cy=0.0, seg=10):
     """A closed prism whose Y-Z cross-section is a rounded rectangle (half-width hw,
     half-height hh, corner radius r, centred on y=cy / z=cz), spanning x0..x1. Ported
@@ -143,26 +147,6 @@ def boolean_diff(target, cutter):
     bpy.ops.object.modifier_apply(modifier=m.name)
     bpy.data.objects.remove(cutter, do_unlink=True)
 
-def emissive_plane(name, size_xy, loc, rot, color, strength):
-    """A downward/-X facing emissive quad used for the neighbour-cell state glow."""
-    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 0))
-    o = bpy.context.active_object
-    o.name = name
-    # set object transforms directly (no transform_apply -- its location-baking in 5.2
-    # was intermittently dropping the placement); emission needs no applied transform.
-    o.scale = (size_xy[0], size_xy[1], 1.0)
-    o.rotation_euler = rot
-    o.location = loc
-    m = bpy.data.materials.new(name + "Mat")
-    m.use_nodes = True
-    nt = m.node_tree
-    em = nt.nodes.new("ShaderNodeEmission")
-    em.inputs["Color"].default_value = (*color, 1.0)
-    em.inputs["Strength"].default_value = strength
-    nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
-    o.data.materials.append(m)
-    return o, em
-
 
 # --- SF5 state palette --------------------------------------------------------
 GREEN = (0.16, 0.72, 0.28)          # available
@@ -171,29 +155,47 @@ RED = (0.92, 0.14, 0.10)            # moving
 ORANGE = (1.0, 0.55, 0.06)          # closed / flush
 
 
-# Per-cell state for the neighbours (hero k=0 is animated by the story). Every hole
-# gets a REAL cell -- a duplicated shell + piston -- so the wall reads as live:
+# Per-cell state for the neighbours. Every hole gets a REAL cell -- a duplicated
+# shell + piston -- so the wall reads as live:
 #   open     piston retracted, empty bore visible
-#   occupied piston retracted, a sleeper inside
+#   occupied piston retracted, a static sleeper inside
 #   closed   piston swept flush -> its face IS the wall
-NEIGHBOUR_STATE = {-3: "occupied", -2: "open", -1: "closed",
-                   1: "closed", 2: "occupied", 3: "open"}
+# Cells with story beats stay "open" here and get their occupant/piston animation
+# in the timeline below: k=-2 sitter, k=+3 the S1 leaver (closes after), k=+2
+# reopens mid-S1, and the hero k=0 holds the S2 guest.
+NEIGHBOUR_STATE = {-4: "closed", -3: "occupied", -2: "open", -1: "occupied",
+                   1: "open", 2: "closed", 3: "open", 4: "open"}
+
+# The FULL hero cell, so every neighbour is a proper clone of hivecell.blend
+# ("Key" in the blend is a studio light, not a cell part). Piston + seals travel
+# together on the stroke; magazine/column/luminaire stay put.
+CELL_PARTS = ("CapsuleShell", "Piston", "WiperSeals",
+              "ChainMagazine", "ChainColumn", "Luminaire")
+CELL_MOVERS = ("Piston", "WiperSeals")
+
+neigh_movers = {}                   # k -> [piston clone, seals clone] (keyable)
 
 
 def duplicate_cell(k, piston_x):
-    """Clone the hero shell + piston to neighbour column k (offset in Y); set the
-    neighbour piston along X for its state (0 retracted/open, -STROKE swept/closed)."""
+    """Clone the whole hero cell to neighbour column k (offset in Y); set the
+    neighbour stroke along X for its state (0 retracted/open, -STROKE swept/closed).
+    The hero piston rests at x=0, so neighbour stroke X is keyed in absolute terms.
+    Meshes are LINKED duplicates (edit the hero, all cells follow) except the
+    Luminaire, whose data is copied so Phase 2 can give each cell its own state
+    colour."""
     y = k * PITCH
-    for src_name in ("CapsuleShell", "Piston"):
+    for src_name in CELL_PARTS:
         src = bpy.data.objects[src_name]
         o = src.copy()
-        o.data = src.data.copy()
+        if src_name == "Luminaire":
+            o.data = src.data.copy()
         sc.collection.objects.link(o)
         o.name = "%s_c%d" % (src_name, k)
         o.location = src.location.copy()
         o.location.y += y
-        if src_name == "Piston":
+        if src_name in CELL_MOVERS:
             o.location.x += piston_x
+            neigh_movers.setdefault(k, []).append(o)
 
 
 def add_sleeper(k):
@@ -249,52 +251,51 @@ def build_wall_of_cells():
 
 
 # =============================================================================
-# ACTOR: a greybox person (capsule body + head + bag) on a keyframable root.
-# Postures are set by keying the root location + the body's tilt: STAND upright,
-# LIE flat along X inside the bore. Crude on purpose (Phase 3 replaces it).
+# CAST: greybox people (capsule body + head, optional bag) on keyframable roots.
+# Postures tip the WHOLE rig as one rigid unit by rotating the ROOT about Y --
+# never a single part (rotating just the body while the head kept its standing
+# offset was the "head flies above the wall" bug). Root sits at the feet; local
+# +Z is "up the body", so a -90 deg Y-rotation lays the figure along -X.
 # =============================================================================
-def build_actor():
-    skin = new_pbr("ActorSkin", (0.80, 0.52, 0.42), rough=0.6)
-    cloth = new_pbr("ActorCloth", (0.26, 0.34, 0.50), rough=0.9)
-    bagm = new_pbr("ActorBag", (0.45, 0.32, 0.20), rough=0.85)
-
-    root = bpy.data.objects.new("Actor", None)
+def make_person(name, cloth_color=(0.26, 0.34, 0.50), with_bag=False):
+    skin = bpy.data.materials.get("ActorSkin") or new_pbr("ActorSkin", (0.80, 0.52, 0.42), 0.6)
+    cloth = new_pbr("Cloth_" + name, cloth_color, 0.9)
+    root = bpy.data.objects.new(name, None)
     sc.collection.objects.link(root)
 
     bpy.ops.mesh.primitive_cylinder_add(radius=0.20, depth=1.0, location=(0, 0, 0.62))
     body = bpy.context.active_object
-    body.name = "ActorBody"
+    body.name = name + "Body"
     body.data.materials.append(cloth)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.15, location=(0, 0, 1.27))
     head = bpy.context.active_object
-    head.name = "ActorHead"
+    head.name = name + "Head"
     head.data.materials.append(skin)
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0.28, 0.0, 0.28))
-    bag = bpy.context.active_object
-    bag.name = "ActorBag"
-    bag.scale = (0.22, 0.16, 0.26)
-    bpy.ops.object.transform_apply(scale=True)
-    bag.location = (0.28, 0.0, 0.28)
-    bag.data.materials.append(bagm)
-    for o in (body, head, bag):
+    parts = [body, head]
+    if with_bag:
+        bagm = bpy.data.materials.get("ActorBag") or new_pbr("ActorBag", (0.45, 0.32, 0.20), 0.85)
+        bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0))
+        bag = bpy.context.active_object
+        bag.name = name + "Bag"
+        bag.scale = (0.22, 0.16, 0.26)
+        bpy.ops.object.transform_apply(scale=True)
+        bag.location = (0.28, 0.0, 0.28)
+        bag.data.materials.append(bagm)
+        parts.append(bag)
+    for o in parts:
         for p in o.data.polygons:
             p.use_smooth = True
         o.parent = root
-    return {"root": root, "body": body, "head": head, "bag": bag}
+    return root
 
 
-def key_obj(o, frame, loc=None, rot=None, hide=None):
+def key_obj(o, frame, loc=None, rot=None):
     if loc is not None:
         o.location = loc
         o.keyframe_insert("location", frame=frame)
     if rot is not None:
         o.rotation_euler = rot
         o.keyframe_insert("rotation_euler", frame=frame)
-    if hide is not None:
-        o.hide_render = hide
-        o.keyframe_insert("hide_render", frame=frame)
-        o.hide_viewport = hide
-        o.keyframe_insert("hide_viewport", frame=frame)
 
 
 def key_cam(frame, cloc, floc):
@@ -305,8 +306,8 @@ def key_cam(frame, cloc, floc):
 
 
 def key_lens(frame, mm):
-    # keyframe focal length so one shot can tighten without moving the camera in; key
-    # 32 on the adjacent frames of neighbouring shots so the change is a clean cut.
+    # keyframe focal length so the two shots can carry different fields of view;
+    # keyed on the adjacent frames of the cut so the change never blends.
     cam.data.lens = mm
     cam.data.keyframe_insert("lens", frame=frame)
 
@@ -318,143 +319,106 @@ def key_piston(frame, x):
     seals.keyframe_insert("location", index=0, frame=frame)
 
 
-def cut_hold(frame):
-    """Hard CUT between shots. Each shot's end key and the next shot's start key sit
-    on ADJACENT frames (end at f+span, next start at f+span+1), so no intermediate
-    frame is ever rendered between them -- the cut is inherent. Kept as a no-op hook
-    in case a future shot needs an explicit hold."""
-    return
+def key_neigh_piston(k, frame, x):
+    for o in neigh_movers[k]:
+        o.location.x = x
+        o.keyframe_insert("location", index=0, frame=frame)
 
 
 # =============================================================================
-# TIMELINE  (24 fps, hard cuts between shots). Frame ranges per shot.
+# TIMELINE  (24 fps). TWO SHOTS, one hard cut: the shots' end/start camera keys
+# sit on ADJACENT frames (S1 ends at 480, S2 starts at 481), so no in-between
+# frame is ever rendered -- the cut is inherent.
 # =============================================================================
 GROUND_STAND = GROUND_Z - 0.12      # root at the feet -> body bottom plants on the ground
 SILL_Z = sh[4]                      # mouth sill height
 STREET_X = -1.6                     # people walk here, in front of the wall
 
-neigh = build_wall_of_cells()
-A = build_actor()
-root, body, head, bag = A["root"], A["body"], A["head"], A["bag"]
-cam.data.lens = 32                              # wider than the night-hero default, for the street
+build_wall_of_cells()
+
+# the cast
+guest = make_person("Guest", (0.26, 0.34, 0.50), with_bag=True)   # hero cell k=0; leaves in S2
+resident = make_person("Resident", (0.52, 0.30, 0.28))            # cell k=+3; leaves in S1
+sitter = make_person("Sitter", (0.30, 0.44, 0.30))                # sits on the sill of k=-2
+walker1 = make_person("Walker1", (0.35, 0.35, 0.38))
+walker2 = make_person("Walker2", (0.55, 0.50, 0.35))
+walker3 = make_person("Walker3", (0.30, 0.30, 0.45))
 
 
-def hide_actor(frame, hidden):
-    """Hide the actor by keying its MESHES (the root is an Empty, which never renders,
-    so keying the root alone leaves the body/head/bag on screen -- the reappearing-
-    sleeper bug). Key each child mesh's render + viewport visibility."""
-    for o in (body, head, bag):
-        o.hide_render = hidden
-        o.keyframe_insert("hide_render", frame=frame)
-        o.hide_viewport = hidden
-        o.keyframe_insert("hide_viewport", frame=frame)
+def stand(rig, frame, x, y):
+    key_obj(rig, frame, loc=(x, y, GROUND_STAND), rot=(0, 0, 0))
 
-# Postures tip the WHOLE rig as one rigid unit by rotating the ROOT about Y -- never
-# a single part (rotating just the body while the head kept its standing offset was
-# the "head flies above the wall" bug). Root sits at the feet; local +Z is "up the
-# body", so a -90 deg Y-rotation lays the figure along -X (head toward the mouth).
-def stand(frame, x, y):
-    key_obj(root, frame, loc=(x, y, GROUND_STAND), rot=(0, 0, 0))
+def sit(rig, frame, y, x=0.15):
+    # lounging in the mouth, well reclined and tucked past the sill -- otherwise
+    # the figure reads as "standing in the hole" from the wide camera
+    key_obj(rig, frame, loc=(x, y, SILL_Z + 0.05), rot=(0, math.radians(-60), 0))
 
-def sit(frame, x=-0.1):
-    # perched on the sill, half-reclined -- the in-between of stand and lie
-    key_obj(root, frame, loc=(x, 0.0, SILL_Z + 0.05), rot=(0, math.radians(-42), 0))
-
-def lie(frame, cx=1.0):
+def lie(rig, frame, y, cx=1.0):
     # flat on the bore floor; root offset so the torso centres on cx, head toward -X
-    key_obj(root, frame, loc=(cx + 0.60, 0.0, FLOOR_Z + 0.20), rot=(0, math.radians(-90), 0))
+    key_obj(rig, frame, loc=(cx + 0.60, y, FLOOR_Z + 0.20), rot=(0, math.radians(-90), 0))
 
 
 shots = []   # (name, start, end) for the log
 
-# ---- S1  establish wide: the living wall (dusk) ----  0:00
-f = 1
-key_cam(f, (-11.5, -0.7, 1.5), (0.0, 0.0, 0.35))
-key_cam(f + 130, (-11.0, 0.2, 1.4), (0.0, 0.5, 0.30))
-hide_actor(f, True)                            # actor not on screen yet
-stand(f, STREET_X - 3.0, -3.2)
-shots.append(("S1_establish", f, f + 143))
-f += 144
+# ---- S1  THE LIVING WALL (wide, favours no cell) ----  0:00 .. 0:20
+S1_A, S1_B = 1, 480
+key_lens(S1_A, 28)
+key_cam(S1_A, (-11.3, -1.0, 1.45), (0.3, -0.5, 0.40))
+key_cam(S1_B, (-11.0, 0.8, 1.40), (0.3, 0.5, 0.40))
 
-# ---- S2  the person notices a free cell ----  ~0:06
-key_cam(f, (-4.2, -2.2, 0.7), (STREET_X, -1.4, 0.4))
-key_cam(f + 95, (-3.6, -1.6, 0.6), (STREET_X, -0.4, 0.4))
-hide_actor(f, False)
-stand(f, STREET_X, -1.8)
-stand(f + 95, STREET_X + 0.3, -0.3)            # drifts toward the hero cell (y=0)
-shots.append(("S2_notices", f, f + 95))
-cut_hold(f)
-f += 96
+# parallel life -- nothing is "the" subject:
+# the guest is already asleep in the hero cell (their story pays off in S2)
+lie(guest, S1_A, 0.0)
+# someone sits on the sill of k=-2 for the whole film
+sit(sitter, S1_A, -2 * PITCH)
+# pedestrians cross the street at different depths / directions / speeds; ALL
+# of them are fully clear of the wall span (and of the S2 dolly track, which
+# starts around y=-8) before the cut at 480
+stand(walker1, S1_A, STREET_X - 0.7, -9.0)
+stand(walker1, S1_A + 429, STREET_X - 0.7, 11.0)
+stand(walker2, S1_A + 59, STREET_X - 1.4, 9.5)
+stand(walker2, S1_B, STREET_X - 1.4, -12.0)
+stand(walker3, S1_A + 139, STREET_X - 1.0, 9.0)
+stand(walker3, S1_B, STREET_X - 1.0, -11.0)
+# a resident wakes, leaves cell k=+3 ... and it sweeps closed for cleaning
+Y3 = 3 * PITCH
+lie(resident, S1_A, Y3)
+lie(resident, S1_A + 129, Y3)
+sit(resident, S1_A + 184, Y3)
+stand(resident, S1_A + 234, -0.5, Y3)
+stand(resident, S1_A + 299, STREET_X, Y3 + 0.8)
+stand(resident, S1_A + 459, STREET_X - 0.4, Y3 + 6.0)   # off along the street
+key_neigh_piston(3, S1_A + 319, 0.0)
+key_neigh_piston(3, S1_A + 429, -STROKE)
+# ... while next door a finished cell reopens, ready (the wall breathes)
+key_neigh_piston(2, S1_A + 339, -STROKE)
+key_neigh_piston(2, S1_A + 449, 0.0)
+shots.append(("S1_living_wall", S1_A, S1_B))
 
-# ---- S3  greeting + sits on the sill, swings in ----  ~0:10
-key_cam(f, (-3.0, -1.5, 0.6), (MOUTH_X, 0.0, SILL_Z))
-key_cam(f + 119, (-2.4, -1.0, 0.5), (MOUTH_X + 0.4, 0.0, SILL_Z - 0.1))
-stand(f, STREET_X + 0.3, 0.0)
-stand(f + 40, -0.5, 0.0)                       # steps up to the mouth
-sit(f + 70, -0.1)                              # perches on the sill
-lie(f + 119, 1.0)                              # swings in, settling toward lying
-shots.append(("S3_enter", f, f + 119))
-cut_hold(f)
-f += 120
+# ---- S2  THE PASS (close lateral dolly -> stops on the leave + clean) ----  0:20 .. 0:42
+S2_A, S2_B = 481, 1000
+key_lens(S1_B, 28)                  # hold the wide lens right up to the cut
+key_lens(S2_A, 35)
+Y0 = -(N_SIDE * PITCH + 2.0)
+# glide along the wall, focus leading a couple of metres ahead; ease to a stop
+# just off the hero cell for the finale
+# camera height ~ opening centre so the tilt stays near level and the rounded
+# tops are never cropped by the frame edge
+key_cam(S2_A, (-3.0, Y0, 0.45), (0.3, Y0 + 2.2, OPEN_CZ + 0.05))
+key_cam(S2_A + 339, (-3.1, -0.8, 0.45), (0.3, 0.3, OPEN_CZ + 0.05))
+key_cam(S2_B, (-3.4, -1.0, 0.50), (0.3, 0.0, OPEN_CZ))
+# the guest wakes as the camera arrives, leaves past the frame ...
+lie(guest, S2_A + 219, 0.0)
+sit(guest, S2_A + 279, 0.0)
+stand(guest, S2_A + 329, -0.5, 0.0)
+stand(guest, S2_A + 369, STREET_X, 0.6)
+stand(guest, S2_A + 479, STREET_X - 0.6, 5.0)      # exits the way the camera came from... away
+# ... a beat while the cell verifies it is empty, then the sweep, hold on flush
+key_piston(S2_A + 394, 0.0)
+key_piston(S2_A + 479, -STROKE)
+shots.append(("S2_pass_and_clean", S2_A, S2_B))
 
-# ---- S4  settles inside, warm amber; the mouth STAYS open ----  ~0:15
-key_cam(f, (-3.4, -1.4, 0.2), (1.0, 0.0, FLOOR_Z + 0.3))
-key_cam(f + 95, (-3.0, -1.1, 0.1), (1.1, 0.0, FLOOR_Z + 0.25))
-lie(f, 1.0)
-lie(f + 95, 1.0)
-shots.append(("S4_settle", f, f + 95))
-cut_hold(f)
-f += 96
-
-# ---- S5  night passes (time-lapse hold on the wall) ----  ~0:19
-key_cam(f, (-8.6, -1.8, 1.7), (0.0, 0.0, 0.3))
-key_cam(f + 119, (-8.4, -1.2, 1.6), (0.0, 0.2, 0.3))
-lie(f, 1.0); lie(f + 119, 1.0)
-shots.append(("S5_night", f, f + 119))
-cut_hold(f)
-f += 120
-
-# ---- S6  dawn: he wakes, gathers the bag, leaves (litter behind) ----  ~0:24
-key_cam(f, (-3.2, -1.4, 0.3), (0.8, 0.0, FLOOR_Z + 0.3))
-key_cam(f + 143, (-3.4, -1.8, 0.6), (STREET_X, 0.6, 0.4))
-lie(f, 1.0)
-lie(f + 30, 1.0)
-# sit up on the sill, then stand and walk away down the street
-sit(f + 60, -0.1)
-stand(f + 90, -0.5, 0.0)
-stand(f + 143, STREET_X, 1.8)
-shots.append(("S6_dawn_leave", f, f + 143))
-cut_hold(f)
-f += 144
-
-# ---- S7  THE REVEAL: the piston sweeps the cell clean (interior) ----  ~0:30
-hide_actor(f, True)                            # he is gone; only the litter remains
-# same elevated 3/4 framing as S8 (reads well): watch the whole sweep from it
-key_cam(f, (-3.2, -2.0, 0.6), (MOUTH_X, 0.0, OPEN_CZ))
-key_cam(f + 167, (-4.0, -2.4, 0.7), (MOUTH_X, 0.0, OPEN_CZ))
-key_piston(f, 0.0); key_piston(f + 20, 0.0)
-key_piston(f + 130, -STROKE)                   # sweep to flush
-shots.append(("S7_reveal_sweep", f, f + 167))
-cut_hold(f)
-f += 168
-
-# ---- S8  becomes the wall (flush) ----  ~0:37
-key_cam(f, (-3.2, -2.0, 0.6), (MOUTH_X, 0.0, OPEN_CZ))
-key_cam(f + 71, (-4.0, -2.4, 0.7), (MOUTH_X, 0.0, OPEN_CZ))
-key_piston(f, -STROKE); key_piston(f + 71, -STROKE)
-shots.append(("S8_flush", f, f + 71))
-cut_hold(f)
-f += 72
-
-# ---- S9  reopen, ready; pull back to the living wall ----  ~0:40
-key_cam(f, (-4.0, -2.4, 0.7), (MOUTH_X, 0.0, OPEN_CZ))
-key_cam(f + 119, (-11.5, -0.7, 1.5), (0.0, 0.0, 0.35))   # pull back to the living wall
-key_piston(f, -STROKE); key_piston(f + 45, 0.0)   # withdraw -> open
-shots.append(("S9_reopen", f, f + 119))
-cut_hold(f)
-f += 120
-
-END = f
+END = S2_B
 # hero interior luminaire + beacon exist on the base cell; the greybox leaves their
 # state animation to Phase 2 (lighting), when the day/night arc is built.
 
@@ -490,8 +454,12 @@ for name, s, e in shots:
 print("narrative greybox: 1..%d  (%.1fs @ %dfps)  step=%d  draft=%s"
       % (END, END / FPS, FPS, STEP, DRAFT))
 
+save = os.environ.get("HC_SAVE", "")
 still = os.environ.get("HC_STILL", "")
-if still:
+if save:
+    bpy.ops.wm.save_as_mainfile(filepath=save)
+    print("narrative: scene baked to %s (no render)" % save)
+elif still:
     for fr in [int(x) for x in still.split(",")]:
         sc.frame_set(fr)
         sc.render.filepath = OUT + ("%04d" % fr)
