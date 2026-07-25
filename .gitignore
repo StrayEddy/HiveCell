@@ -28,3 +28,5 @@ __pycache__/
 /blender/hivecell.blend
 /blender/models/
 /blender/hdri/
+# CC0 cast packs, >100MB and re-downloadable: blender/fetch_cast.sh
+/assets/quaternius/
