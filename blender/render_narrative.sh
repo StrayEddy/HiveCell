@@ -2,6 +2,10 @@
 # Render the "One Night" narrative cinematic and assemble the review mp4s.
 #   ./render_narrative.sh              regenerate greybox (Workbench, HC_DRAFT=1)
 #   HC_DRAFT=0 ./render_narrative.sh   regenerate for Cycles
+#   HC_REAL=1 ./render_narrative.sh    real look: licensed KitBash city, Cycles
+#                                      night (needs blender/prepare_envato.sh first).
+#                                      HC_STILL=120,700 renders just those frames;
+#                                      HC_SAMPLES=N sets Cycles samples.
 #   HC_BLEND=narrative.blend ./render_narrative.sh
 #                                      render a HAND-EDITED baked blend as-is
 #                                      (no regeneration -- manual edits survive)
@@ -11,6 +15,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FPS=24
 : "${HC_DRAFT:=1}"
+: "${HC_REAL:=0}"
+: "${HC_STILL:=}"
+: "${HC_SAMPLES:=48}"
 : "${HC_BLEND:=}"
 
 rm -f "$ROOT"/renders/narrative/f_*.png
@@ -19,9 +26,16 @@ if [ -n "$HC_BLEND" ]; then
     flatpak run --filesystem="$ROOT" org.blender.Blender \
         --background "$ROOT/blender/$HC_BLEND" --render-anim
 else
-    HC_DRAFT="$HC_DRAFT" flatpak run --filesystem="$ROOT" org.blender.Blender \
+    HC_DRAFT="$HC_DRAFT" HC_REAL="$HC_REAL" HC_STILL="$HC_STILL" HC_SAMPLES="$HC_SAMPLES" \
+        flatpak run --filesystem="$ROOT" org.blender.Blender \
         --background "$ROOT/blender/hivecell.blend" \
         --python "$ROOT/blender/narrative_cinematic.py"
+fi
+
+# still-only look-check: the python wrote just those frames, nothing to assemble
+if [ -n "$HC_STILL" ]; then
+    echo "stills: renders/narrative/f_*.png ($HC_STILL)"
+    exit 0
 fi
 
 # the one warm end card: clone the last frame for 3s and set the line over it

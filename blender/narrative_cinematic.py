@@ -48,6 +48,11 @@ from mathutils import Vector
 ROOT = "/home/eddy/Projects/HiveCell"
 OUT = os.path.join(ROOT, "renders", "narrative", "f_")
 DRAFT = os.environ.get("HC_DRAFT", "1") == "1"
+# HC_REAL=1 dresses the street with the licensed KitBash3D city assets
+# (assets/envato/, Envato Elements) and renders lit in EEVEE with the night
+# world -- the Phase 2/3 look. Unset = the fast Workbench greybox (Phase 1).
+REAL = os.environ.get("HC_REAL", "0") == "1"
+ENV = os.path.join(ROOT, "assets", "envato")
 FPS = 24
 STEP = int(os.environ.get("HC_STEP", "1"))
 
@@ -100,6 +105,15 @@ def new_pbr(name, color, rough=0.7, metal=0.0):
     b.inputs["Roughness"].default_value = rough
     b.inputs["Metallic"].default_value = metal
     return m
+
+def emit(mat, color, strength):
+    """Make a material glow in Cycles (windows, lamp heads). Workbench ignores
+    emission and shades the diffuse_color copied in the render-settings block, so
+    this only takes effect in the Phase 2 Cycles night pass."""
+    b = principled(mat)
+    b.inputs["Emission Color"].default_value = (*color, 1.0)
+    b.inputs["Emission Strength"].default_value = strength
+    return mat
 
 # NB: create the primitive at the ORIGIN, not at `center`. In Blender 5.2
 # transform_apply(scale=True) also bakes+zeroes location, so adding at `center` and
@@ -233,6 +247,227 @@ def build_wall_of_cells():
 
 
 # =============================================================================
+# CITY CONTEXT: the wall is one facade on a night street, not an object in a
+# void. We greybox the street it stands on (sidewalk -> curb -> road, running
+# along Y past both cameras) and the city around it (a set-back skyline of lit
+# blocks behind and beside the hive), then push the look to NIGHT. Geometry
+# only here: real light is Phase 2 -- the night HDRI world + emissive windows /
+# lamp heads drive Cycles. In the Workbench greybox the night read is carried by
+# a dark sky, dark road/building masses, and the warm pools of the streetlamps,
+# lit windows and (later) the cell glow.
+#
+# Everything shares ONE walking plane at GROUND_Z (feet are keyed there), so the
+# sidewalk sits a hair proud of the road and the curb is a raised lip -- no slab
+# is low enough to drop a foot through. City blocks are set back past x=3.2 so
+# they clear the cell bores (the shells reach x=2.5).
+# =============================================================================
+import random as _rnd
+
+CITY_Y = 17.0                       # street runs this far each way in Y
+ROAD_X0, ROAD_X1 = -17.0, 9.5       # road spans under S1's camera and past the wall
+CURB_X = -3.4                       # sidewalk (wall side) -> curb -> road (street side)
+
+
+# =============================================================================
+# REAL DRESSING: link the licensed KitBash3D assets (assets/envato/) as collection
+# instances. KitBash ships each item at real-world metric scale, Z-up, base at
+# z=0 -- the same units as the hero cell -- so placement is (x, y) on the street
+# plus a Z-rotation for facing, dropping the base to GROUND_Z. Storefronts face
+# their facade toward local -Y, so -90 deg swings it (and its built-in sidewalk)
+# to face our street, which opens toward -X. Instances are cheap: the same linked
+# collection can be dropped many times.
+# =============================================================================
+_kb_lib = {}                        # blend path -> local collection of linked objects
+
+def link_kb(item, blendfile, label, xy, rot_z=-90.0, scale=1.0, ztop=None):
+    # KitBash blends keep their geometry directly in the scene root (the named
+    # 'Collection' datablock is empty), so we LINK the objects and gather them
+    # into a local collection we can instance -- link once per blend, instance
+    # many. Cameras are dropped; meshes + the shopfront's own lights come along.
+    path = os.path.join(ENV, item, blendfile)
+    if path not in _kb_lib:
+        with bpy.data.libraries.load(path, link=True) as (src, dst):
+            dst.objects = list(src.objects)
+        col = bpy.data.collections.new("KBsrc_" + os.path.splitext(blendfile.replace("/", "_"))[0])
+        for o in dst.objects:
+            if o is not None and o.type != "CAMERA":
+                col.objects.link(o)                     # not linked into the scene: instance-only
+        _kb_lib[path] = col
+    e = bpy.data.objects.new("KB_" + label, None)
+    e.instance_type = "COLLECTION"
+    e.instance_collection = _kb_lib[path]
+    e.location = (xy[0], xy[1], GROUND_Z if ztop is None else ztop)
+    e.rotation_euler = (0, 0, math.radians(rot_z))
+    e.scale = (scale, scale, scale)
+    sc.collection.objects.link(e)
+    return e
+
+
+def dress_city_real():
+    # concrete pavement in front of the hive: KitBash sidewalk tiles (4x5x0.2),
+    # laid along Y from wall to curb, tops a hair above the asphalt
+    tiles = ["KB3D_CTS_Sidewalk_A.blend", "KB3D_CTS_Sidewalk_B.blend", "KB3D_CTS_Sidewalk_C.blend"]
+    for i, yy in enumerate(range(-8, 12, 5)):
+        link_kb("kitbash-city-streets-sidewalk-%s" % "abc"[i % 3], tiles[i % 3],
+                "Walk%d" % yy, (-1.4, yy), rot_z=0, ztop=GROUND_Z - 0.18)
+
+    # street-level neighbours flanking the hive, pushed out to the Y-ends so they
+    # frame the shot rather than loom behind the hero (facades face -X)
+    link_kb("kitbash-storefronts-st-noelle-bistro", "KB3D_SFR_HighEndStore_C.blend",
+            "Bistro", (0.4, 15.5))
+    link_kb("kitbash-storefronts-book-store", "KB3D_SFR_MidEndStore_F.blend",
+            "BookStore", (0.4, -15.5))
+    link_kb("kitbash-storefronts-minimart-groceries", "KB3D_SFR_MidEndStore_I.blend",
+            "Minimart", (0.4, -28.0))
+    link_kb("kitbash-city-streets-city-sidewalk-b", "KB3D_CTS_BldgMD_K.blend",
+            "BldgMD", (0.4, 27.0))
+
+    # the skyline: set back on +X, centred behind the hive so the wide S1 lens
+    # catches the lit towers rising above the low wall
+    link_kb("kitbash-manhattan-skyscraper-c", "KB3D_MIM_Skyscraper_C.blend",
+            "Skyscraper", (40.0, -7.0))
+    link_kb("kitbash-manhattan-upscale-hotel", "KB3D_MIM_UpscaleHotel_A.blend",
+            "Hotel", (42.0, 15.0))
+
+    # streetlamps along the curb (arm reaching over the road toward -X), each
+    # with a real warm light at the head so the model actually pools light on the
+    # street -- spread off-centre so no pole bisects the hero framing
+    for yy in (-12.0, -4.0, 4.0, 12.0):
+        link_kb("kitbash-city-streets-lamp-f", "KB3D_CTS_Lamp_F.blend",
+                "Lamp%d" % int(yy), (CURB_X - 0.2, yy), rot_z=90)
+        li = bpy.data.lights.new("LampL%d" % int(yy), "POINT")
+        li.energy = 900.0
+        li.color = (1.0, 0.72, 0.42)        # warm sodium
+        li.shadow_soft_size = 0.5
+        lo = bpy.data.objects.new("LampL%d" % int(yy), li)
+        sc.collection.objects.link(lo)
+        lo.location = (CURB_X - 1.0, yy, GROUND_Z + 4.6)
+
+    # a parked car at the curb + a little street furniture near the hero
+    link_kb("kitbash-city-cars-sedan", os.path.join("asset", "KB3D_Sedan.blend"),
+            "Sedan", (-2.6, -9.5), rot_z=0)
+    link_kb("kitbash-city-streets-fire-hydrant-a", "KB3D_CTS_FireHydrant_A.blend",
+            "Hydrant", (-3.0, 3.5), rot_z=0)
+    link_kb("kitbash-city-streets-newspaper-stand-a", "KB3D_CTS_NewspaperStand_A.blend",
+            "News", (-3.0, -1.5), rot_z=0)
+    link_kb("kitbash-city-streets-traffic-lights-b", "KB3D_CTS_TrafficLights_B.blend",
+            "Signal", (-3.6, -14.0), rot_z=0)
+
+
+def setup_night_world():
+    """Night sky + moon. Default is a graded sky (deep navy zenith -> a warm city
+    glow at the horizon) so the placed towers read as a real skyline silhouette
+    against it; HC_SKY_HDRI=1 uses the packed night_street.hdr backdrop instead.
+    A dim cool moon grazes the facades; KitBash emissive maps (windows, signs,
+    lamp heads) carry the warm accents. Shared by the EEVEE/Cycles paths."""
+    w = sc.world or bpy.data.worlds.new("NightWorld")
+    sc.world = w
+    w.use_nodes = True
+    nt = w.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputWorld")
+    bg = nt.nodes.new("ShaderNodeBackground")
+    nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
+    bg.inputs["Strength"].default_value = float(os.environ.get("HC_SKY", "0.5"))
+
+    hdri = os.path.join(ROOT, "blender", "hdri", "night_street.hdr")
+    if os.environ.get("HC_SKY_HDRI", "0") == "1" and os.path.exists(hdri):
+        env = nt.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(hdri, check_existing=True)
+        nt.links.new(env.outputs["Color"], bg.inputs["Color"])
+    else:
+        # graded sky: ColorRamp driven by the up-component of the view ray
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(geo.outputs["Incoming"], sep.inputs["Vector"])
+        ramp = nt.nodes.new("ShaderNodeValToRGB")
+        nt.links.new(sep.outputs["Z"], ramp.inputs["Fac"])
+        e = ramp.color_ramp.elements
+        e[0].position = 0.0
+        e[0].color = (0.10, 0.07, 0.05, 1.0)     # horizon: warm sodium city glow
+        e[1].position = 1.0
+        e[1].color = (0.008, 0.011, 0.025, 1.0)  # zenith: deep night navy
+        mid = ramp.color_ramp.elements.new(0.45)
+        mid.color = (0.02, 0.028, 0.05, 1.0)
+        nt.links.new(ramp.outputs["Color"], bg.inputs["Color"])
+
+    sun = bpy.data.objects.get("Sun")
+    if sun and sun.type == "LIGHT":
+        sun.data.energy = float(os.environ.get("HC_MOON", "0.9"))
+        sun.data.color = (0.55, 0.62, 0.90)     # moonlight
+        # come from the camera/front (-X) side at a low angle so the surfaces the
+        # camera sees -- the wall face and the tower facades behind it -- catch
+        # the moon and read, instead of sitting in overhead shadow.
+        sun.rotation_euler = (math.radians(-18), math.radians(58), math.radians(12))
+
+
+def build_city():
+    old = bpy.data.objects.get("Ground")
+    if old:
+        old.hide_render = old.hide_viewport = True      # we own the ground now
+
+    asphalt = new_pbr("Asphalt", (0.045, 0.045, 0.055), rough=0.95)
+    concrete = new_pbr("SidewalkMat", (0.26, 0.27, 0.28), rough=0.9)
+    curbmat = new_pbr("CurbMat", (0.38, 0.39, 0.41), rough=0.9)
+    facade = new_pbr("CityBlock", (0.05, 0.055, 0.075), rough=0.85)     # dark night mass
+    pole_m = new_pbr("LampPole", (0.05, 0.05, 0.06), rough=0.5, metal=0.8)
+    win_m = emit(new_pbr("WindowLit", (1.0, 0.86, 0.55), rough=0.5), (1.0, 0.86, 0.55), 3.0)
+    head_m = emit(new_pbr("LampHead", (1.0, 0.75, 0.42), rough=0.4), (1.0, 0.72, 0.40), 12.0)
+    line_m = new_pbr("RoadLine", (0.55, 0.50, 0.22), rough=0.9)
+
+    # --- the street surface (road low, sidewalk 2 cm proud, curb a raised lip) -
+    box("Road", (ROAD_X1 - ROAD_X0, 2 * CITY_Y, 0.30),
+        ((ROAD_X0 + ROAD_X1) / 2, 0.0, GROUND_Z - 0.15), asphalt)
+
+    if REAL:
+        dress_city_real()       # licensed KitBash city over the procedural asphalt
+        return
+
+    box("Sidewalk", (0.35 - CURB_X, 2 * CITY_Y, 0.28),
+        ((0.35 + CURB_X) / 2, 0.0, GROUND_Z - 0.12), concrete)      # top = GROUND_Z + 0.02
+    box("Curb", (0.12, 2 * CITY_Y, 0.16), (CURB_X, 0.0, GROUND_Z + 0.08), curbmat)
+    for yy in range(int(-CITY_Y) + 1, int(CITY_Y), 3):              # dashed centre line
+        box("Lane_%d" % yy, (0.12, 1.1, 0.02), (-10.0, yy + 0.5, GROUND_Z + 0.01), line_m)
+
+    # --- city blocks: a set-back skyline of lit facades behind and beside the
+    #     hive. Lower windows hide behind the wall; the tops rise above it, so
+    #     the hive reads as one low facade on a taller city block. -------------
+    def building(name, cx, cy, w, d, h, seed):
+        box(name, (d, w, h), (cx, cy, GROUND_Z + h / 2), facade)
+        r = _rnd.Random(seed)
+        cols, rows = max(2, int(w // 1.4)), max(2, int((h - 1.2) // 1.6))
+        x_face = cx - d / 2 - 0.02                                  # street-facing (-X) wall
+        for c in range(cols):
+            for ro in range(rows):
+                if r.random() < 0.35:                              # a third of windows dark
+                    continue
+                wy = cy - w / 2 + (c + 0.5) * (w / cols)
+                wz = GROUND_Z + 1.0 + (ro + 0.5) * ((h - 1.4) / rows)
+                box("%s_win_%d_%d" % (name, c, ro), (0.05, 0.55, 0.7),
+                    (x_face, wy, wz), win_m)
+
+    #          name        cx    cy    w   d   h  seed   (face = cx - d/2 >= 3.2)
+    for spec in [("BlockA", 5.5, -8.0, 6, 4, 7, 11), ("BlockB", 7.5, -3.0, 5, 5, 10, 22),
+                 ("BlockC", 6.0, 2.5, 5, 4, 6, 33), ("BlockD", 8.5, 7.0, 6, 5, 11, 44),
+                 ("BlockE", 5.2, 11.5, 6, 3.6, 7, 55), ("BlockF", 9.5, -11.5, 6, 5, 9, 66)]:
+        building(*spec)
+
+    # --- streetlamps along the curb, arms reaching over the road (behind the S2
+    #     camera, foreground pools of warm light in S1) ------------------------
+    for yy in (-9.5, -4.0, 4.0, 9.5):
+        n = "Lamp_%d" % int(yy * 10)
+        px = CURB_X - 0.2
+        box(n + "_pole", (0.08, 0.08, 2.4), (px, yy, GROUND_Z + 1.2), pole_m)
+        box(n + "_arm", (0.9, 0.06, 0.06), (px - 0.45, yy, GROUND_Z + 2.35), pole_m)
+        box(n + "_head", (0.30, 0.16, 0.10), (px - 0.85, yy, GROUND_Z + 2.30), head_m)
+        li = bpy.data.lights.new(n + "_L", "POINT")               # dark for Cycles Phase 2
+        li.energy, li.color, li.shadow_soft_size = 320.0, (1.0, 0.72, 0.40), 0.35
+        lo = bpy.data.objects.new(n + "_L", li)
+        sc.collection.objects.link(lo)
+        lo.location = (px - 0.85, yy, GROUND_Z + 2.25)
+
+
+# =============================================================================
 # CAST: Quaternius Universal Base Characters driven by clips from the Universal
 # Animation Library (both CC0, assets/quaternius/). The packs share one 65-bone
 # rig, so library actions bind to the characters directly -- no retargeting.
@@ -279,8 +514,44 @@ def load_action_library():
         a.use_fake_user = True      # survive the save even where unused
 
 
+# blocky-cast look (the semi-real base bodies are ugly; we stylise them into
+# clean flat-shaded low-poly forms -- animations untouched). Skin is painted flat
+# per person; the uncanny eyes + helper sphere are dropped.
+SKIN_RGB = {"dark": (0.34, 0.23, 0.17), "mid": (0.60, 0.43, 0.33), "light": (0.82, 0.63, 0.53)}
+HAIR_RGB = (0.05, 0.04, 0.035)
+BLOCK_RATIO = float(os.environ.get("HC_BLOCK", "0.12"))    # decimate ratio (lower = blockier)
+
+def flat_mat(name, color):
+    m = new_pbr(name, color, rough=1.0)                    # matte, no spec highlight
+    b = principled(m)
+    for s in ("Specular IOR Level", "Specular"):
+        if s in b.inputs:
+            b.inputs[s].default_value = 0.0
+    return m
+
+def flat_vc_mat(name, layer):
+    m = flat_mat(name, (0.6, 0.6, 0.6))
+    nt = m.node_tree
+    vcn = nt.nodes.new("ShaderNodeVertexColor")
+    vcn.layer_name = layer
+    nt.links.new(vcn.outputs["Color"], principled(m).inputs["Base Color"])
+    return m
+
+def _blockify(o, ratio):
+    for p in o.data.polygons:
+        p.use_smooth = False                              # facet it -> low-poly read
+    dec = o.modifiers.new("Blocky", "DECIMATE")
+    dec.ratio = ratio
+    try:                                                  # decimate the rest pose,
+        with bpy.context.temp_override(object=o):         # BEFORE the armature deform,
+            bpy.ops.object.modifier_move_to_index(modifier=dec.name, index=0)
+    except Exception:                                     # so topology stays stable
+        pass                                              # (no per-frame flicker)
+
+
 def make_person(name, sex="m", shirt=(0.5, 0.5, 0.5), pants=(0.3, 0.3, 0.3), skin="dark"):
-    """Import a rigged character, dress it, hang it under an Empty root at the feet."""
+    """Import a rigged character, dress it in flat matte colour and stylise it into
+    a clean blocky low-poly form; hang it under an Empty root at the feet."""
     pre = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=CHAR_GLTF[sex])
     new = [o for o in bpy.data.objects if o not in pre]
@@ -290,25 +561,34 @@ def make_person(name, sex="m", shirt=(0.5, 0.5, 0.5), pants=(0.3, 0.3, 0.3), ski
     for o in new:
         if o is not arm:
             o.name = name + "_" + o.name
-    body = next(o for o in new if o.type == "MESH" and any(
-        s.material and "Superhero" in s.material.name for s in o.material_slots))
-    if skin == "light":
-        img = bpy.data.images.load(LIGHT_TEX[sex], check_existing=True)
-        for n in body.material_slots[0].material.node_tree.nodes:
-            if n.type == "TEX_IMAGE" and any(l.to_socket.name == "A"
-                                             for o_ in n.outputs for l in o_.links):
-                n.image = img
-    # dress: tint the multiply vertex-colour layer by height zone
-    me = body.data
-    vc = me.color_attributes[0]
-    for li, loop in enumerate(me.loops):
-        z = me.vertices[loop.vertex_index].co.z
-        if z < Z_SHOE:
-            vc.data[li].color = (*SHOES, 1.0)
-        elif z < Z_WAIST:
-            vc.data[li].color = (*pants, 1.0)
-        elif z < Z_NECK:
-            vc.data[li].color = (*shirt, 1.0)   # arms/hands too = long sleeves
+    skin_rgb = SKIN_RGB.get(skin, SKIN_RGB["mid"])
+
+    for o in [o for o in new if o.type == "MESH"]:
+        joined = " ".join(s.material.name if s.material else "" for s in o.material_slots).lower()
+        if "superhero" in joined:
+            # BODY: paint flat colour zones (skin on the head) into the vcol layer
+            me = o.data
+            vc = me.color_attributes[0]
+            for li, loop in enumerate(me.loops):
+                z = me.vertices[loop.vertex_index].co.z
+                if z < Z_SHOE:
+                    vc.data[li].color = (*SHOES, 1.0)
+                elif z < Z_WAIST:
+                    vc.data[li].color = (*pants, 1.0)
+                elif z < Z_NECK:
+                    vc.data[li].color = (*shirt, 1.0)      # arms/hands too = long sleeves
+                else:
+                    vc.data[li].color = (*skin_rgb, 1.0)   # head + neck = skin
+            o.data.materials.clear()
+            o.data.materials.append(flat_vc_mat(name + "_skin", vc.name))
+            _blockify(o, BLOCK_RATIO)
+        elif "hair" in joined:
+            o.data.materials.clear()
+            o.data.materials.append(flat_mat(name + "_hair", HAIR_RGB))
+            _blockify(o, 0.5)
+        else:
+            bpy.data.objects.remove(o, do_unlink=True)     # drop eyes + helper sphere
+
     root = bpy.data.objects.new(name, None)
     sc.collection.objects.link(root)
     arm.parent = root
@@ -400,6 +680,7 @@ SIT_Z = SILL_Z + 0.03 - 0.58        # root height that rests the sitting hips on
 STREET_X = -1.6                     # people walk here, in front of the wall
 
 build_wall_of_cells()
+build_city()
 load_action_library()
 
 # the cast (sex/skin vary the body, shirt+pants colours vary the outfit)
@@ -530,19 +811,53 @@ play(sleeper_b, [("Death01", 1, END, "still:57")])
 # state animation to Phase 2 (lighting), when the day/night arc is built.
 
 
+if os.environ.get("HC_DEBUG"):
+    for o in bpy.data.objects:
+        if o.name.startswith("KB_") and o.instance_collection:
+            mn = [1e9] * 3; mx = [-1e9] * 3
+            for src in o.instance_collection.all_objects:
+                if src.type != "MESH":
+                    continue
+                m = o.matrix_world @ src.matrix_world
+                for c in src.bound_box:
+                    wv = m @ Vector(c)
+                    for i in range(3):
+                        mn[i] = min(mn[i], wv[i]); mx[i] = max(mx[i], wv[i])
+            print("KBBOX| %-16s x[%6.1f..%6.1f] y[%6.1f..%6.1f] z[%6.1f..%6.1f]"
+                  % (o.name, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]))
+
+
 # =============================================================================
 # render settings (greybox: Workbench draft, low res, fast)
 # =============================================================================
 sc.frame_start = 1
-sc.frame_end = END
+sc.frame_end = int(os.environ.get("HC_END", END))     # HC_END caps the range for previews
+sc.frame_step = int(os.environ.get("HC_FSTEP", "1"))  # render every Nth frame (fast preview)
 sc.render.fps = FPS
 sc.render.resolution_x, sc.render.resolution_y = (960, 540)
-sc.render.resolution_percentage = 100
+sc.render.resolution_percentage = int(os.environ.get("HC_RESPCT", "100"))
 sc.render.image_settings.file_format = "PNG"
 sc.render.filepath = OUT
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 
-if DRAFT:
+if REAL:
+    # Phase 2/3 look: licensed KitBash city lit at night. Cycles (CPU) is the
+    # robust headless choice -- the flatpak Blender falls back to software GL, so
+    # EEVEE cannot upload the 4K PBR textures. The KitBash emissive maps (windows,
+    # signs, lamp heads) glow directly; the night HDRI + moon fill the rest.
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = int(os.environ.get("HC_SAMPLES", "48"))
+    sc.cycles.use_denoising = True
+    # the skyline towers are heavy and static -- reuse their BVH across frames so
+    # each frame only re-syncs the cast/pistons that actually move
+    sc.render.use_persistent_data = True
+    setup_night_world()
+    sc.render.film_transparent = False
+    # KitBash shopfronts carry bright interior lights; pull the whole exposure
+    # down into night through AgX (which also rolls off the hot signs/lamps).
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.exposure = float(os.environ.get("HC_EXP", "-1.5"))
+elif DRAFT:
     sc.render.engine = "BLENDER_WORKBENCH"
     for m in bpy.data.materials:
         if m.use_nodes and principled(m):
@@ -551,12 +866,22 @@ if DRAFT:
     # TEXTURE: characters show their PBR textures; untextured walls fall back
     # to the material colour copied above
     d.light = "STUDIO"; d.color_type = "TEXTURE"; d.show_shadows = True; d.show_cavity = True
+    # NIGHT: a dark sky behind the dark road/building masses; the warm windows,
+    # lamp heads and cells stay the brightest things in frame. Dim the studio
+    # light so the scene sits in dusk rather than daylight.
+    d.background_type = "VIEWPORT"
+    d.background_color = (0.015, 0.02, 0.045)   # deep night-blue sky
+    try:
+        d.studiolight_intensity = 0.55
+    except (AttributeError, TypeError):
+        pass
     sc.display.render_aa = "FXAA"
     sc.render.film_transparent = False
 else:
     sc.render.engine = "CYCLES"
     sc.cycles.samples = 24
     sc.cycles.use_denoising = True
+    setup_night_world()
 
 for name, s, e in shots:
     print("SHOT %-18s frames %4d..%-4d (%4.1fs)" % (name, s, e, (e - s) / FPS))

@@ -30,3 +30,5 @@ __pycache__/
 /blender/hdri/
 # CC0 cast packs, >100MB and re-downloadable: blender/fetch_cast.sh
 /assets/quaternius/
+# KitBash3D city assets (Envato Elements license): multi-GB, not redistributable
+/assets/envato/
