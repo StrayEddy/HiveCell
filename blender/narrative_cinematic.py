@@ -30,15 +30,25 @@ Run one pass headless on the built hero cell:
       --background <repo>/blender/hivecell.blend \
       --python <repo>/blender/narrative_cinematic.py
 
+ARCHITECTURE (source of truth):
+  blender/narrative.blend is the SOURCE OF TRUTH for the cinematic -- hand-edited
+  in Blender (scene, camera, all keyframes/NLA, materials). This script is a
+  FROZEN one-time SCAFFOLD that generated it; do NOT re-run it to regenerate over
+  hand edits. The cell geometry is LINKED from blender/hivecell.blend (which the
+  CAD owns), so regenerating hivecell.blend from CAD updates the cell everywhere
+  while narrative.blend keeps its placement, animation and look. Render the
+  authoritative file with:  HC_BLEND=narrative.blend ./blender/render_narrative.sh
+
 Env:
   HC_DRAFT=1   Workbench (fast greybox)   HC_DRAFT=0  Cycles (later phases)
+  HC_REAL=1    licensed KitBash city, Cycles night (the full look; has greenery)
   HC_STEP=N    render every Nth frame (quick preview of the whole timeline)
   HC_STILL="120,600"  render just those frames as stills (fastest look check)
   HC_SAVE=<path>      build the scene + animation, save it as a .blend and do
-                      NOT render -- the baked file is for hand-editing in
-                      Blender (from then on that file is the source of truth;
-                      re-running this script regenerates from scratch and will
-                      not contain manual edits)
+                      NOT render -- the (re)generation path for narrative.blend
+  HC_LINK=1           with HC_SAVE: LINK the cell mesh data from hivecell.blend
+                      instead of baking a copy (relink_cell_to_library), so the
+                      saved file references the CAD cell. Used for the one-time bake.
 """
 import bpy
 import os
@@ -129,22 +139,29 @@ def box(name, size, center, mat=None):
         o.data.materials.append(mat)
     return o
 
-def rounded_rect_prism(name, hw, hh, r, cz, x0, x1, cy=0.0, seg=10):
+def rounded_rect_prism(name, hw, hh, r, cz, x0, x1, cy=0.0, seg=10, back=None):
     """A closed prism whose Y-Z cross-section is a rounded rectangle (half-width hw,
     half-height hh, corner radius r, centred on y=cy / z=cz), spanning x0..x1. Ported
     from build_scene -- used as a boolean cutter so the wall opening hugs the cell's
-    filleted corners instead of a square hole."""
-    r = min(r, hw, hh)
-    corners = [(hw - r, hh - r, 0.0), (-(hw - r), hh - r, 90.0),
-               (-(hw - r), -(hh - r), 180.0), (hw - r, -(hh - r), 270.0)]
-    outline = []
-    for cyk, czk, a0 in corners:
-        for i in range(seg + 1):
-            a = math.radians(a0 + 90.0 * i / seg)
-            outline.append((cyk + r * math.cos(a), czk + r * math.sin(a)))
-    n = len(outline)
-    verts = [(x0, cy + y, cz + z) for (y, z) in outline] + \
-            [(x1, cy + y, cz + z) for (y, z) in outline]
+    filleted corners instead of a square hole. If `back`=(hw2,hh2,r2) is given the x1
+    end uses that (larger) section, so the cut FLARES -- a splayed reveal that widens
+    toward the interior, so the wall's inner jamb never laps over the cell mouth at an
+    oblique viewing angle (the 'grey over the opening' bug)."""
+    def _outline(hw, hh, r):
+        r = min(r, hw, hh)
+        corners = [(hw - r, hh - r, 0.0), (-(hw - r), hh - r, 90.0),
+                   (-(hw - r), -(hh - r), 180.0), (hw - r, -(hh - r), 270.0)]
+        pts = []
+        for cyk, czk, a0 in corners:
+            for i in range(seg + 1):
+                a = math.radians(a0 + 90.0 * i / seg)
+                pts.append((cyk + r * math.cos(a), czk + r * math.sin(a)))
+        return pts
+    o0 = _outline(hw, hh, r)
+    o1 = _outline(*back) if back else o0
+    n = len(o0)
+    verts = [(x0, cy + y, cz + z) for (y, z) in o0] + \
+            [(x1, cy + y, cz + z) for (y, z) in o1]
     faces = [(i, (i + 1) % n, (i + 1) % n + n, i + n) for i in range(n)]
     faces.append(tuple(range(n)))
     faces.append(tuple(range(2 * n - 1, n - 1, -1)))
@@ -231,13 +248,19 @@ def build_wall_of_cells():
     facade = box("Facade", (FACADE_D, span_y, WALL_TOP - GROUND_Z),
                  (cx, 0.0, (GROUND_Z + WALL_TOP) * 0.5), mat_wall)
 
-    reveal = 0.02
+    # SPLAYED reveal: tight at the street face (rf), flared wider toward the interior
+    # (rb), so the facade's inner jamb never laps over the mouth when a cell is viewed
+    # at an angle. rf<0 / rb>0 are the reveals at the cutter's extended ends; at the
+    # facade's own faces (x=0 .. FACADE_D=0.25) they interpolate to ~+0.02 (front,
+    # tight frame) .. ~+0.12 (back, well clear of the sight line).
+    rf, rb = -0.04, 0.18
     for k in range(-N_SIDE, N_SIDE + 1):
         y = k * PITCH
         # ROUNDED opening that hugs the cell's filleted corners (not a square hole)
-        cut = rounded_rect_prism("Open_%d" % k, OPEN_HW + reveal, OPEN_HH + reveal,
-                                 CORNER_R + reveal, OPEN_CZ, MOUTH_X - 0.15,
-                                 MOUTH_X + FACADE_D + 0.15, cy=y)
+        cut = rounded_rect_prism("Open_%d" % k, OPEN_HW + rf, OPEN_HH + rf,
+                                 CORNER_R + rf, OPEN_CZ, MOUTH_X - 0.15,
+                                 MOUTH_X + FACADE_D + 0.15, cy=y,
+                                 back=(OPEN_HW + rb, OPEN_HH + rb, CORNER_R + rb))
         boolean_diff(facade, cut)
         if k == 0:
             continue                                    # hero: imported cell, story-animated
@@ -907,6 +930,17 @@ if _piston_o.data.materials and _piston_o.data.materials[0]:
     _pmat.name = "HeroPiston_pop"
     _piston_o.material_slots[0].link = "OBJECT"
     _piston_o.material_slots[0].material = _pmat
+    # give the piston its OWN colour (a cool steel) so its face reads as the
+    # mechanism, not a wall panel: retracted it's the grey plane deep in an OPEN
+    # cell, swept flush it's a CLOSED cell's face -- either way now clearly "piston",
+    # distinct from the warm wall (0.42,0.40,0.38). Recolour the shared mesh material
+    # (drives every neighbour piston) AND the hero's object-linked copy; Workbench
+    # picks it up through the DRAFT diffuse_color sync below.
+    PISTON_COLOR = (0.30, 0.35, 0.45, 1.0)
+    for _m in (_piston_o.data.materials[0], _pmat):
+        _mb = principled(_m)
+        if _mb:
+            _mb.inputs["Base Color"].default_value = PISTON_COLOR
     _pb = principled(_pmat)
     if _pb:
         _pb.inputs["Emission Color"].default_value = (0.15, 0.75, 1.0, 1.0)   # cool clean glow
@@ -1143,10 +1177,62 @@ for name, s, e in shots:
 print("narrative greybox: 1..%d  (%.1fs @ %dfps)  step=%d  draft=%s"
       % (END, END / FPS, FPS, STEP, DRAFT))
 
+# =============================================================================
+# CELL LINKING (HC_LINK=1): make narrative.blend REFERENCE the CAD cell instead of
+# baking a copy. Called AFTER the first save (so the open file is already
+# narrative.blend and we're not linking hivecell.blend into itself). Each cell
+# part's LOCAL mesh is swapped for the same mesh LINKED from hivecell.blend, so the
+# geometry is owned by CAD; the OBJECTS stay local (placement + piston animation are
+# the cinematic's), and the cinematic LOOK is pinned onto them as object-level local
+# materials so blue piston / x-ray / glow survive the swap. Regenerating
+# hivecell.blend from CAD then updates the cell geometry everywhere.
+# =============================================================================
+def relink_cell_to_library():
+    hc_abs = os.path.join(ROOT, "blender", "hivecell.blend")
+    parts = [o for o in bpy.data.objects
+             if o.type == "MESH" and any(o.name.startswith(p) for p in CELL_PARTS)]
+    if not parts:
+        print("relink: no cell mesh objects found"); return
+    localcache = {}                              # id(orig mat) -> local copy (shared)
+    def localize(m):
+        if m is None:
+            return None
+        if id(m) not in localcache:
+            c = m.copy()
+            c.name = "cell_" + m.name.rsplit(".", 1)[0]
+            localcache[id(m)] = c
+        return localcache[id(m)]
+    look = {o.name: [localize(s.material) for s in o.material_slots] for o in parts}
+    base_names = {o.data.name.rsplit(".", 1)[0] for o in parts}
+    with bpy.data.libraries.load(hc_abs, link=True) as (src, dst):
+        dst.meshes = [m for m in src.meshes if m.rsplit(".", 1)[0] in base_names]
+    linked = {}
+    for m in bpy.data.meshes:
+        if m.library:
+            linked.setdefault(m.name.rsplit(".", 1)[0], m)
+    n = 0
+    for o in parts:
+        lm = linked.get(o.data.name.rsplit(".", 1)[0])
+        if lm:
+            o.data = lm; n += 1
+        for i, mat in enumerate(look[o.name]):   # re-pin the cinematic look, object-level
+            if i < len(o.material_slots) and mat:
+                o.material_slots[i].link = "OBJECT"
+                o.material_slots[i].material = mat
+    for lb in bpy.data.libraries:                # store a PORTABLE relative path
+        if lb.filepath.endswith("hivecell.blend"):
+            lb.filepath = "//hivecell.blend"     # narrative.blend + hivecell.blend share blender/
+    print("relink: %d/%d cell objects -> hivecell.blend (%d linked meshes)"
+          % (n, len(parts), len(linked)))
+
+
 save = os.environ.get("HC_SAVE", "")
 still = os.environ.get("HC_STILL", "")
 if save:
-    bpy.ops.wm.save_as_mainfile(filepath=save)
+    bpy.ops.wm.save_as_mainfile(filepath=save)   # file is now narrative.blend
+    if os.environ.get("HC_LINK", "0") == "1":    # then reference the CAD cell + resave
+        relink_cell_to_library()
+        bpy.ops.wm.save_mainfile()
     print("narrative: scene baked to %s (no render)" % save)
 elif still:
     for fr in [int(x) for x in still.split(",")]:

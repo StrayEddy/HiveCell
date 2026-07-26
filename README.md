@@ -118,9 +118,10 @@ hardware derivatives must stay open under the same terms. Full texts are in
 [`LICENSE`](LICENSE).
 
 Some cinematic cast motion is derived from [Mixamo](https://www.mixamo.com/)
-animations, used under Adobe's royalty-free terms; those source clips are **not**
-redistributed here (they stay out of git) — re-fetch and re-bake via
-`blender/retarget_mixamo.py`.
+animations, used under Adobe's royalty-free terms. The source Mixamo FBX are not
+committed, but the baked `blender/narrative.blend` (the cinematic's source of
+truth) does embed the retargeted motion — re-bakeable via
+`blender/retarget_mixamo.py`. That motion is Mixamo's, not CC0.
 
 Contributions are welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md); the most valuable one right now is a real
