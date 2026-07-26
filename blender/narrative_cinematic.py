@@ -829,6 +829,12 @@ def sit(rig, frame, y):
     # facing the street, hips landing on the sill, feet reaching the ground
     key_obj(rig["root"], frame, loc=(-0.20, y, SIT_Z), rot=(0, 0, math.radians(-90)))
 
+# The retargeted Mixamo Sit_Sill_Loop rests its hips at 0.51 above the feet-origin
+# (vs the UAL clip's 0.58), so it needs its own root height to land on the sill.
+SIT_Z_MIX = SILL_Z + 0.03 - 0.51
+def sit_mix(rig, frame, y):
+    key_obj(rig["root"], frame, loc=(-0.20, y, SIT_Z_MIX), rot=(0, 0, math.radians(-90)))
+
 def lie(rig, frame, y, cx=0.35):
     # Death01's final pose: on the back, head toward local +Y -> yaw -90 lays
     # the head DEEP into the bore (+X), feet toward the mouth. Seen from the
@@ -919,7 +925,7 @@ key_cam(S1_B, (-11.0, 0.8, 1.40), (0.3, 0.5, 0.40))
 # parallel life -- nothing is "the" subject:
 # the guest is already asleep in the hero cell (their story pays off in S2),
 # and two neighbours sleep through the whole film
-lie(guest, S1_A, 0.0)
+lie_sleep(guest, S1_A, 0.0)
 lie_sleep(sleeper_a, S1_A, -3 * PITCH)
 lie_sleep(sleeper_b, S1_A, -1 * PITCH)
 # someone sits on the sill of k=-2 for the whole film
@@ -967,8 +973,8 @@ key_cam(S2_A, (-3.0, Y0, 0.45), (0.3, Y0 + 2.2, OPEN_CZ + 0.05))
 key_cam(S2_A + T2(300), (-3.1, -0.8, 0.45), (0.3, 0.3, OPEN_CZ + 0.05))
 key_cam(S2_B, (-3.2, -0.9, 0.45), (0.3, 0.0, OPEN_CZ))
 # the guest wakes, packs up (sits on the sill a beat), stands, and leaves
-lie(guest, S2_A + T2(190), 0.0)
-sit(guest, S2_A + T2(270), 0.0)                                 # sits up = packs up
+lie_sleep(guest, S2_A + T2(190), 0.0)
+sit_mix(guest, S2_A + T2(270), 0.0)                            # sits up = packs up
 stand(guest, S2_A + T2(330), -0.5, 0.0, -90)
 stand(guest, S2_A + T2(370), STREET_X, 0.6, -90)
 key_obj(guest["root"], S2_A + T2(392), rot=(0, 0, math.radians(-180)))   # turns up-street
@@ -1026,12 +1032,16 @@ shots.append(("S3_xray_clean", S3_A, S3_B))
 # NB: the lying->sitting crossfade must ride WITH the root's slide out of the
 # bore (guest 700..760, resident 130..185) -- an earlier blend makes the body
 # sit up inside the bore while the root still lies down (the "sprawl" bug).
+# guest wake, upgraded to the retargeted Mixamo clips: a flat supine sleep, a
+# relaxed sit-up on the sill, a real sit->stand, then walk off on a breathing idle.
+# (UAL Walk_Loop is kept -- the Mixamo walk retarget name-collides with it and is
+# unused; the resident/sitter still ride the UAL sit, so sit_mix is guest-only.)
 play(guest, [
-    ("Death01", 1, S2_A + T2(268), "still:57"),
-    ("Sitting_Idle_Loop", S2_A + T2(268), S2_A + T2(300), "loop", T2(45)),
-    ("Sitting_Exit", S2_A + T2(300), S2_A + T2(330), "once"),
+    ("Lay_Idle", 1, S2_A + T2(268), "loop"),
+    ("Sit_Sill_Loop", S2_A + T2(268), S2_A + T2(300), "loop", T2(45)),
+    ("Sit_To_Stand", S2_A + T2(300), S2_A + T2(330), "once"),
     ("Walk_Loop", S2_A + T2(330), S2_A + T2(460), "loop"),
-    ("Idle_Loop", S2_A + T2(460), END, "loop"),
+    ("Idle_Breathe", S2_A + T2(460), END, "loop"),
 ])
 play(resident, [
     ("Death01", 1, S1_A + T1(178), "still:57"),
