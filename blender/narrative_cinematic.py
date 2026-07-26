@@ -455,6 +455,11 @@ def setup_daynight():
     for fr, v in [(1, 0.0), (S1_B, 0.0), (S2_A, 1.0), (END, 1.0)]:
         nf.outputs[0].default_value = v
         nf.outputs[0].keyframe_insert("default_value", frame=fr)
+    # S3 dissolves the whole environment to a black void -> fade the night sky out
+    _nv = night.inputs["Strength"].default_value
+    for fr, v in [(S2_A, _nv), (S2_B, _nv), (S3_A, 0.0), (END, 0.0)]:
+        night.inputs["Strength"].default_value = v
+        night.inputs["Strength"].keyframe_insert("default_value", frame=fr)
 
     key = bpy.data.objects.get("Key")     # kill the product-shot studio flood light
     if key and key.type == "LIGHT":
@@ -481,9 +486,12 @@ def setup_daynight():
             li.energy = v
             li.keyframe_insert("energy", frame=fr)
 
-    # exposure: brighter in daylight, pulled down for night
-    for fr, v in [(1, -0.5), (S1_B, -0.5), (S2_A, float(os.environ.get("HC_EXP", "-1.0"))),
-                  (END, float(os.environ.get("HC_EXP", "-1.0")))]:
+    # exposure: bright by day, down for night; then dip through BLACK across the
+    # S2->S3 cut and rise back to reveal the isolated cell -> the dissolve
+    _exp = float(os.environ.get("HC_EXP", "-1.0"))
+    _exp3 = float(os.environ.get("HC_EXP3", "0.5"))    # brighter reveal for the isolated cell
+    for fr, v in [(1, -0.5), (S1_B, -0.5), (S2_A, _exp), (S2_B, _exp),
+                  (S3_A, -6.0), (S3_A + T3(18), _exp3), (END, _exp3)]:
         sc.view_settings.exposure = v
         try:
             sc.view_settings.keyframe_insert("exposure", frame=fr)
@@ -572,6 +580,11 @@ def build_city():
 QUAT = os.path.join(ROOT, "assets", "quaternius")
 UAL_GLB = os.path.join(QUAT, "Universal Animation Library[Standard]",
                        "Unreal-Godot", "UAL1_Standard.glb")
+# Second clip library: Mixamo animations retargeted onto this same Quaternius rig
+# (blender/retarget_mixamo.py bakes ~/Downloads/*.fbx -> Actions here). CC0-clean:
+# the CC0 body plays the motion; only the motion data carries Mixamo terms. New
+# clip names (Sleep_Idle, Sit_Floor_KneeUp, Crawl_Fwd_Loop, ...) slot into play().
+MIX_LIB = os.path.join(QUAT, "UAL2_Mixamo.blend")
 CHAR_GLTF = {
     "m": os.path.join(QUAT, "Universal Base Characters[Standard]",
                       "Base Characters", "Godot - UE", "Superhero_Male_FullBody.gltf"),
@@ -595,11 +608,16 @@ if not os.path.exists(UAL_GLB):
 
 
 def load_action_library():
-    """Import the UAL mannequin for its actions, then drop its objects."""
+    """Import the UAL mannequin for its actions, then drop its objects; then append
+    the retargeted Mixamo clips from the second library. Both sets bind to the
+    Quaternius rig by bone name -- no retargeting at play() time."""
     pre = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=UAL_GLB)
     for o in [o for o in bpy.data.objects if o not in pre]:
         bpy.data.objects.remove(o, do_unlink=True)
+    if os.path.exists(MIX_LIB):                 # retargeted Mixamo Actions (append by name)
+        with bpy.data.libraries.load(MIX_LIB, link=False) as (src, dst):
+            dst.actions = list(src.actions)
     for a in bpy.data.actions:
         a.use_fake_user = True      # survive the save even where unused
 
@@ -657,11 +675,18 @@ def make_person(name, sex="m", shirt=(0.5, 0.5, 0.5), pants=(0.3, 0.3, 0.3), ski
     for o in [o for o in new if o.type == "MESH"]:
         joined = " ".join(s.material.name if s.material else "" for s in o.material_slots).lower()
         if "superhero" in joined:
-            # BODY: paint flat colour zones (skin on the head) into the vcol layer
+            # BODY: paint flat colour zones (skin on the head) into the vcol layer.
+            # The zone cuts (Z_SHOE/Z_WAIST/Z_NECK) are metres up from the feet, so
+            # we partition on WORLD Z, not the mesh's local vert Z. Quaternius imports
+            # at world scale 1 (world Z == local Z, unchanged), but a Mixamo-skeleton
+            # character arrives with the metre scale on the parent armature (0.01) and
+            # the mesh's own local space offset -- there local Z is neither metres nor
+            # 0..height, so reading it directly would paint the whole body one zone.
             me = o.data
             vc = me.color_attributes[0]
+            mw = o.matrix_world
             for li, loop in enumerate(me.loops):
-                z = me.vertices[loop.vertex_index].co.z
+                z = (mw @ me.vertices[loop.vertex_index].co).z
                 if z < Z_SHOE:
                     vc.data[li].color = (*SHOES, 1.0)
                 elif z < Z_WAIST:
@@ -814,10 +839,79 @@ def lie(rig, frame, y, cx=0.35):
     key_obj(rig["root"], frame, loc=(cx, y, FLOOR_Z), rot=(0, 0, math.radians(-90)))
 
 
+def lie_sleep(rig, frame, y, cx=0.70):
+    # Static sleepers use the retargeted Mixamo Lay_Idle (a flat, relaxed supine
+    # rest) instead of the Death01 sprawl. Measured layout matches Death01's: head
+    # toward local +Y, feet toward -Y, body flat (lowest ~z=0.05) -> yaw -90 lays
+    # the head DEEP into the bore (+X), feet toward the mouth, same as lie(). It's
+    # more compact than Death01 (head ~cx+0.71, not +1.22), so cx sits a touch
+    # deeper to keep the feet at the mouth plane rather than poking into the street.
+    key_obj(rig["root"], frame, loc=(cx, y, FLOOR_Z), rot=(0, 0, math.radians(-90)))
+
+
 shots = []   # (name, start, end) for the log
 
 # ---- S1  THE LIVING WALL (wide, favours no cell) ----  0:00 .. 0:20
-S1_A, S1_B = 1, 480
+S1_A = 1
+# THREE shots. S1 = daytime establisher (short). S2 = night: the guest wakes,
+# packs up, leaves, and the cell closes. S3 = the X-RAY CLEAN -- the environment
+# dissolves to a void, a side-on view isolates the one cell, its near wall turns
+# transparent, and the piston travels the bore cleaning it. The night (S2+S3)
+# outweighs the day. Each shot scales its own hand-tuned offsets independently.
+S1_SEC = float(os.environ.get("HC_S1", "10"))
+S2_SEC = float(os.environ.get("HC_S2", "13"))
+S3_SEC = float(os.environ.get("HC_S3", "7"))
+S1_B = int(round(S1_SEC * FPS))
+S2_A = S1_B + 1
+S2_B = S2_A + int(round(S2_SEC * FPS)) - 1
+S3_A = S2_B + 1
+S3_B = S3_A + int(round(S3_SEC * FPS)) - 1
+END = S3_B
+_S2_SPAN, _S3_SPAN = 520, 200
+def T1(f):                                        # scale S1 offsets (authored on 0..480)
+    return max(1, int(round(f * S1_B / 480.0)))
+def T2(f):                                        # scale S2 offsets (authored on 0.._S2_SPAN)
+    return max(1, int(round(f * (S2_B - S2_A) / _S2_SPAN)))
+def T3(f):                                        # scale S3 offsets (authored on 0.._S3_SPAN)
+    return max(1, int(round(f * (S3_B - S3_A) / _S3_SPAN)))
+
+# hero-cell X-RAY: give the hero shell its OWN see-through material (neighbours
+# share the mesh, so an object-linked slot keeps them opaque); faded clear in S3
+XRAY_A = float(os.environ.get("HC_XRAY", "0.10"))
+_shell = bpy.data.objects["CapsuleShell"]
+if _shell.data.materials and _shell.data.materials[0]:
+    _xray_mat = _shell.data.materials[0].copy()
+    _xray_mat.name = "HeroShell_xray"
+    _shell.material_slots[0].link = "OBJECT"
+    _shell.material_slots[0].material = _xray_mat
+    def key_xray(frame, a):
+        b = principled(_xray_mat)
+        if b:
+            b.inputs["Alpha"].default_value = a
+            b.inputs["Alpha"].keyframe_insert("default_value", frame=frame)
+else:
+    def key_xray(frame, a):
+        pass
+
+# hero PISTON pop: an object-linked material we make glow cyan in S3 so the
+# cleaning stroke reads as a bright scanner sweeping the transparent cell
+_piston_o = bpy.data.objects["Piston"]
+if _piston_o.data.materials and _piston_o.data.materials[0]:
+    _pmat = _piston_o.data.materials[0].copy()
+    _pmat.name = "HeroPiston_pop"
+    _piston_o.material_slots[0].link = "OBJECT"
+    _piston_o.material_slots[0].material = _pmat
+    _pb = principled(_pmat)
+    if _pb:
+        _pb.inputs["Emission Color"].default_value = (0.15, 0.75, 1.0, 1.0)   # cool clean glow
+    def key_piston_glow(frame, s):
+        b = principled(_pmat)
+        if b:
+            b.inputs["Emission Strength"].default_value = s
+            b.inputs["Emission Strength"].keyframe_insert("default_value", frame=frame)
+else:
+    def key_piston_glow(frame, s):
+        pass
 key_lens(S1_A, 28)
 key_cam(S1_A, (-11.3, -1.0, 1.45), (0.3, -0.5, 0.40))
 key_cam(S1_B, (-11.0, 0.8, 1.40), (0.3, 0.5, 0.40))
@@ -826,68 +920,104 @@ key_cam(S1_B, (-11.0, 0.8, 1.40), (0.3, 0.5, 0.40))
 # the guest is already asleep in the hero cell (their story pays off in S2),
 # and two neighbours sleep through the whole film
 lie(guest, S1_A, 0.0)
-lie(sleeper_a, S1_A, -3 * PITCH, cx=0.30)
-lie(sleeper_b, S1_A, -1 * PITCH, cx=0.42)
+lie_sleep(sleeper_a, S1_A, -3 * PITCH)
+lie_sleep(sleeper_b, S1_A, -1 * PITCH)
 # someone sits on the sill of k=-2 for the whole film
 sit(sitter, S1_A, -2 * PITCH)
 # pedestrians cross the street at different depths / directions / speeds; ALL
 # of them are fully clear of the wall span (and of the S2 dolly track, which
 # starts around y=-8) before the cut at 480
 stand(walker1, S1_A, STREET_X - 0.7, -9.0, 180)
-stand(walker1, S1_A + 429, STREET_X - 0.7, 11.0, 180)
-stand(walker2, S1_A + 59, STREET_X - 1.4, 9.5, 0)
+stand(walker1, S1_A + T1(429), STREET_X - 0.7, 11.0, 180)
+stand(walker2, S1_A + T1(59), STREET_X - 1.4, 9.5, 0)
 stand(walker2, S1_B, STREET_X - 1.4, -12.0, 0)
-stand(walker3, S1_A + 139, STREET_X - 1.0, 9.0, 0)
+stand(walker3, S1_A + T1(139), STREET_X - 1.0, 9.0, 0)
 stand(walker3, S1_B, STREET_X - 1.0, -11.0, 0)
 # two pedestrians are ALREADY mid-frame at the first frame, plus a later crosser,
 # so the street reads busy from the open; all end off-frame (|y|>=11) and clear
 # the S2 -Y opening before the cut
 stand(walker4, S1_A, STREET_X - 0.6, -4.0, 180)
-stand(walker4, S1_A + 230, STREET_X - 0.6, 12.0, 180)
+stand(walker4, S1_A + T1(230), STREET_X - 0.6, 12.0, 180)
 stand(walker5, S1_A, STREET_X - 1.3, 3.5, 0)
-stand(walker5, S1_A + 205, STREET_X - 1.3, -11.0, 0)
-stand(walker6, S1_A + 140, STREET_X - 0.9, 11.0, 0)
-stand(walker6, S1_A + 380, STREET_X - 0.9, -12.0, 0)
+stand(walker5, S1_A + T1(205), STREET_X - 1.3, -11.0, 0)
+stand(walker6, S1_A + T1(140), STREET_X - 0.9, 11.0, 0)
+stand(walker6, S1_A + T1(380), STREET_X - 0.9, -12.0, 0)
 # a resident wakes, leaves cell k=+3 ... and it sweeps closed for cleaning
 Y3 = 3 * PITCH
 lie(resident, S1_A, Y3)
-lie(resident, S1_A + 129, Y3)
-sit(resident, S1_A + 184, Y3)
-stand(resident, S1_A + 234, -0.5, Y3, -90)
-stand(resident, S1_A + 299, STREET_X, Y3 + 0.8, -90)
-key_obj(resident["root"], S1_A + 324, rot=(0, 0, math.radians(-180)))  # turns up-street
-stand(resident, S1_A + 459, STREET_X - 0.4, Y3 + 6.0, -180)  # off along the street
-key_neigh_piston(3, S1_A + 319, 0.0)
-key_neigh_piston(3, S1_A + 429, -STROKE)
+lie(resident, S1_A + T1(129), Y3)
+sit(resident, S1_A + T1(184), Y3)
+stand(resident, S1_A + T1(234), -0.5, Y3, -90)
+stand(resident, S1_A + T1(299), STREET_X, Y3 + 0.8, -90)
+key_obj(resident["root"], S1_A + T1(324), rot=(0, 0, math.radians(-180)))  # turns up-street
+stand(resident, S1_A + T1(459), STREET_X - 0.4, Y3 + 6.0, -180)  # off along the street
+key_neigh_piston(3, S1_A + T1(319), 0.0)
+key_neigh_piston(3, S1_A + T1(429), -STROKE)
 # ... while next door a finished cell reopens, ready (the wall breathes)
-key_neigh_piston(2, S1_A + 339, -STROKE)
-key_neigh_piston(2, S1_A + 449, 0.0)
+key_neigh_piston(2, S1_A + T1(339), -STROKE)
+key_neigh_piston(2, S1_A + T1(449), 0.0)
 shots.append(("S1_living_wall", S1_A, S1_B))
 
-# ---- S2  THE PASS (close lateral dolly -> stops on the leave + clean) ----  0:20 .. 0:42
-S2_A, S2_B = 481, 1000
+# ---- S2  THE PASS: wake -> pack up -> leave -> the cell closes ----
 key_lens(S1_B, 28)                  # hold the wide lens right up to the cut
 key_lens(S2_A, 35)
 Y0 = -6.0                           # open on the lit/occupied k=-3 cell, not the dark closed end
-# glide along the wall, focus leading a couple of metres ahead; ease to a stop
-# just off the hero cell for the finale
-# camera height ~ opening centre so the tilt stays near level and the rounded
-# tops are never cropped by the frame edge
+# glide along the wall, ease to a stop at the hero cell as the guest leaves
 key_cam(S2_A, (-3.0, Y0, 0.45), (0.3, Y0 + 2.2, OPEN_CZ + 0.05))
-key_cam(S2_A + 339, (-3.1, -0.8, 0.45), (0.3, 0.3, OPEN_CZ + 0.05))
-key_cam(S2_B, (-3.4, -1.0, 0.50), (0.3, 0.0, OPEN_CZ))
-# the guest wakes as the camera arrives, leaves past the frame ...
-lie(guest, S2_A + 219, 0.0)
-sit(guest, S2_A + 279, 0.0)
-stand(guest, S2_A + 329, -0.5, 0.0, -90)
-stand(guest, S2_A + 369, STREET_X, 0.6, -90)
-key_obj(guest["root"], S2_A + 391, rot=(0, 0, math.radians(-180)))     # turns up-street
-stand(guest, S2_A + 479, STREET_X - 0.6, 5.0, -180)  # exits the way the camera came... away
-# ... a beat while the cell verifies it is empty, then the sweep, hold on flush
-key_piston(S2_A + 394, 0.0)
-key_piston(S2_A + 479, -STROKE)
-shots.append(("S2_pass_and_clean", S2_A, S2_B))
-END = S2_B
+key_cam(S2_A + T2(300), (-3.1, -0.8, 0.45), (0.3, 0.3, OPEN_CZ + 0.05))
+key_cam(S2_B, (-3.2, -0.9, 0.45), (0.3, 0.0, OPEN_CZ))
+# the guest wakes, packs up (sits on the sill a beat), stands, and leaves
+lie(guest, S2_A + T2(190), 0.0)
+sit(guest, S2_A + T2(270), 0.0)                                 # sits up = packs up
+stand(guest, S2_A + T2(330), -0.5, 0.0, -90)
+stand(guest, S2_A + T2(370), STREET_X, 0.6, -90)
+key_obj(guest["root"], S2_A + T2(392), rot=(0, 0, math.radians(-180)))   # turns up-street
+stand(guest, S2_A + T2(450), STREET_X - 0.6, 5.0, -180)        # gone before the cell closes
+# the cell closes behind them: the piston sweeps to flush by the cut to S3
+key_xray(S2_A, 1.0)                                             # opaque through S2
+key_piston(S2_A + T2(430), 0.0)
+key_piston(S2_B, -STROKE)
+shots.append(("S2_pass_and_leave", S2_A, S2_B))
+
+# ---- S3  THE X-RAY CLEAN: the world dissolves to a void, a side-on view isolates
+# the one cell, its near wall turns transparent, and the piston cleans the bore --
+S3_HERO = {"CapsuleShell", "Piston", "WiperSeals", "Luminaire",
+           "ChainMagazine", "ChainColumn", "Camera", "Focus"}
+key_lens(S2_B, 35)                  # hold S2's lens to the cut
+key_lens(S3_A, 55)                  # tighter for the isolate
+# side-on to the hero bore (it runs along +X, centred y=0); a slow push in
+key_cam(S3_A, (1.15, -3.4, 0.05), (1.15, 0.0, 0.0))
+key_cam(S3_B, (1.15, -2.5, 0.02), (1.15, 0.0, 0.0))
+# hide everything except the hero cell so the side view isolates it; the dip to
+# black across the cut (setup_daynight) masks the pop -> reads as a dissolve
+for _o in list(bpy.data.objects):
+    if _o.name in S3_HERO:
+        continue
+    _o.hide_render = False
+    _o.keyframe_insert("hide_render", frame=S2_B)
+    _o.hide_render = True
+    _o.keyframe_insert("hide_render", frame=S3_A)
+# brighten the hero cell's own light for the isolated x-ray so the interior reads
+_lum = bpy.data.objects.get("Luminaire")
+if _lum and _lum.type == "LIGHT":
+    _e0 = _lum.data.energy
+    _lum.data.energy = _e0
+    _lum.data.keyframe_insert("energy", frame=S2_B)
+    _lum.data.energy = _e0 * 2.5
+    _lum.data.keyframe_insert("energy", frame=S3_A + T3(20))
+    _lum.data.keyframe_insert("energy", frame=END)
+
+# the near wall turns transparent and the piston travels the bore, cleaning, and
+# eases back open -- a clean start
+key_xray(S2_B, 1.0)
+key_xray(S3_A + T3(35), XRAY_A)
+key_piston_glow(S2_B, 0.0)                                      # normal in S2
+key_piston_glow(S3_A + T3(22), 5.0)                            # lights up as the scanner
+key_piston_glow(END, 5.0)
+key_piston(S3_A, -STROKE)                                       # starts closed/flush
+key_piston(S3_A + T3(55), -STROKE)
+key_piston(S3_A + T3(180), 0.0)                                 # sweeps back, cleaning, reopens
+shots.append(("S3_xray_clean", S3_A, S3_B))
 
 
 # ---- NLA clip schedules (poses; the roots above carry travel/facing) --------
@@ -897,18 +1027,18 @@ END = S2_B
 # bore (guest 700..760, resident 130..185) -- an earlier blend makes the body
 # sit up inside the bore while the root still lies down (the "sprawl" bug).
 play(guest, [
-    ("Death01", 1, 750, "still:57"),
-    ("Sitting_Idle_Loop", 750, 785, "loop", 45),   # crossfade 705..750 = the swing-out
-    ("Sitting_Exit", 785, 812, "once"),
-    ("Walk_Loop", 812, 962, "loop"),
-    ("Idle_Loop", 962, END, "loop"),
+    ("Death01", 1, S2_A + T2(268), "still:57"),
+    ("Sitting_Idle_Loop", S2_A + T2(268), S2_A + T2(300), "loop", T2(45)),
+    ("Sitting_Exit", S2_A + T2(300), S2_A + T2(330), "once"),
+    ("Walk_Loop", S2_A + T2(330), S2_A + T2(460), "loop"),
+    ("Idle_Loop", S2_A + T2(460), END, "loop"),
 ])
 play(resident, [
-    ("Death01", 1, 180, "still:57"),
-    ("Sitting_Idle_Loop", 180, 210, "loop", 45),   # crossfade 135..180 = the swing-out
-    ("Sitting_Exit", 210, 237, "once"),
-    ("Walk_Loop", 237, 462, "loop"),
-    ("Idle_Loop", 462, END, "loop"),
+    ("Death01", 1, S1_A + T1(178), "still:57"),
+    ("Sitting_Idle_Loop", S1_A + T1(178), S1_A + T1(208), "loop", T1(45)),
+    ("Sitting_Exit", S1_A + T1(208), S1_A + T1(235), "once"),
+    ("Walk_Loop", S1_A + T1(235), S1_A + T1(460), "loop"),
+    ("Idle_Loop", S1_A + T1(460), END, "loop"),
 ])
 play(sitter, [("Sitting_Idle_Loop", 1, END, "loop")])
 play(walker1, [("Walk_Loop", 1, END, "loop")])
@@ -917,8 +1047,8 @@ play(walker3, [("Walk_Loop", 1, END, "loop")])
 play(walker4, [("Walk_Loop", 1, END, "loop")])
 play(walker5, [("Walk_Formal_Loop", 1, END, "loop")])
 play(walker6, [("Walk_Loop", 1, END, "loop")])
-play(sleeper_a, [("Death01", 1, END, "still:57")])
-play(sleeper_b, [("Death01", 1, END, "still:57")])
+play(sleeper_a, [("Lay_Idle", 1, END, "loop")])
+play(sleeper_b, [("Lay_Idle", 1, END, "loop")])
 # hero interior luminaire + beacon exist on the base cell; the greybox leaves their
 # state animation to Phase 2 (lighting), when the day/night arc is built.
 

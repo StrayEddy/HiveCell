@@ -115,6 +115,13 @@ for its medium:
 You may use, modify, and redistribute — including commercially — with attribution;
 hardware derivatives must stay open under the same terms. Full texts are in
 [`LICENSES/`](LICENSES/); the scheme and the **safety notice** are in
-[`LICENSE`](LICENSE). Contributions are welcome — see
+[`LICENSE`](LICENSE).
+
+Some cinematic cast motion is derived from [Mixamo](https://www.mixamo.com/)
+animations, used under Adobe's royalty-free terms; those source clips are **not**
+redistributed here (they stay out of git) — re-fetch and re-bake via
+`blender/retarget_mixamo.py`.
+
+Contributions are welcome — see
 [`CONTRIBUTING.md`](CONTRIBUTING.md); the most valuable one right now is a real
 bench measurement of seal drag (ADR-0011).
