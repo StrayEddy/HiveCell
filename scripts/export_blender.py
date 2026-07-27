@@ -19,7 +19,7 @@ DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/blender/models"
 PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine", "ChainColumn",
          # ADR-0015 cleaning subsystem (fixed space-claim parts)
-         "SprayRing", "TrenchDrain", "ServicePlant"]
+         "SprayRing", "TrenchDrain", "SumpDrain", "ServicePlant"]
 
 # Fine tessellation for smooth render silhouettes (mm units, pre-scale).
 LINEAR_DEFLECTION = 0.2      # max chord error, mm (Godot used 1.0)

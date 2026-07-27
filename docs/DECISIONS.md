@@ -727,6 +727,8 @@ its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + 
 ## ADR-0016 — Cleaning stays off the public face; everything exits the mouth (revises ADR-0015)
 **Date:** 2026-07-27
 **Status:** Accepted. Revises ADR-0015 points 4 and 5a and its internal FloorDrain.
+**Drainage refined by ADR-0017** — the wash media (hot water + chemicals) drains to an
+internal piston-hidden back sump, not out the mouth; only gross solids exit to the grate.
 
 **Context.** ADR-0015 put two cleaning parts on the STREET face — a mouth rinse bar and a
 drop tray under the opening. Both are exposed even when the cell is closed, so they are
@@ -780,6 +782,52 @@ pavement drain + slip / hygiene. Confirm grate load rating + trench sewer tie at
 
 ---
 
+## ADR-0017 — Wash media drains internally via a piston-hidden back sump (refines ADR-0016)
+**Date:** 2026-07-27
+**Status:** Accepted. Refines ADR-0016 drainage; reinstates an internal drain (done right).
+
+**Context.** ADR-0016, chasing vandal resistance, routed EVERYTHING out the mouth —
+including the wash liquids. But the wash media is hot water + detergent + disinfectant;
+sheeting hot chemical water across a public sidewalk (even onto a grate) is worse than the
+street hardware it avoided. The wash media needs a proper, contained drain to sewer.
+
+**Decision.** SPLIT the drainage by what it is:
+1. **Gross solids** still ride the closing sweep OUT the mouth to the flush pavement grate
+   (`TrenchDrain`) — solids can't cross to the sealed service side (ADR-0001 / 0009) and
+   would clog an internal drain.
+2. **Wash media (hot water + chemicals)** drains INTERNALLY to a **back sump** (`SumpDrain`)
+   → sewer; the bore floor slopes to it. Hot chemical water never reaches the street.
+3. **The sump is hidden UNDER the piston when it is deployed to the very back** (Eddy's
+   refinement). It is covered by the piston when the cell is OPEN — so there is never a
+   grate in the occupied cavity (no tamper point, no debris trap, hygienic) — and it is
+   behind the flush face when CLOSED. The public and the occupant never see it. So the
+   internal drain is *more* vandal-resistant than a street feature, not less.
+
+**Why.** Keeps ADR-0016's principle (no cleaning hardware on the public FACE) while giving
+the hot / chemical wash a correct, contained path to sewer. Hiding the sump under the
+deployed piston removes the only downside of an internal floor drain — an exposed grate in
+the occupied space.
+
+**Rejected alternatives.**
+- **Everything out the mouth (ADR-0016 as written):** dumps hot disinfectant water on the
+  pavement. Rejected.
+- **Exposed floor drain in the occupied cavity:** tamper point, debris trap, hygiene risk.
+  Rejected for the piston-hidden position.
+
+**Accepted costs / to verify.**
+- The wash choreography must actually deliver the media to the back sump: confirm nozzle
+  placement (SprayRing + any deep jets) and the floor slope so the media reaches the sump
+  in whatever piston position the wash runs. Space-claim reserves the sump; the hydraulic
+  detail is TBD.
+- Sump strainer / interceptor serviced from below; sewer tie + trap + freeze protection.
+- The sump sits under the deployed piston body (X ≈ cavityLength..barrelLength); confirm it
+  clears the piston + actuator and drains fully.
+
+**Follow-ups.** CAD: `SumpDrain` added (space claim); slope the bore to it; re-export +
+update the anatomy diagram. SAFETY.md: hot-water / chemical drain to sewer + trap.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -792,7 +840,8 @@ pavement drain + slip / hygiene. Confirm grate load rating + trench sewer tie at
    pressure-sensitive safety edge, external/operator e-stop + passive flush latch
    (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
-6. Cleaning subsystem: ADR-0015 + ADR-0016 (motion-driven wash-in-transit, thermal-chemical
-   sanitize, plumbed; everything exits the mouth to a flush pavement trench drain — no
-   street-face hardware) — SprayRing, TrenchDrain, ServicePlant; sizing TBD in build_model.py.
+6. Cleaning subsystem: ADR-0015 + 0016 + 0017 (motion-driven wash-in-transit, thermal-chemical
+   sanitize, plumbed; solids exit the mouth to a flush pavement grate, wash media drains to an
+   internal piston-hidden back sump — no street-face hardware) — SprayRing, TrenchDrain,
+   SumpDrain, ServicePlant; sizing TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

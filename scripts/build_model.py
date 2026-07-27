@@ -61,6 +61,9 @@ PARAMS = [
     ("trenchWidth",         "300 mm", "pavement trench-drain width along X, in front of the mouth [ADR-0016]"),
     ("trenchDepth",         "120 mm", "trench-drain channel depth Z"),
     ("trenchMargin",        "120 mm", "trench length beyond the cavity width on each side (Y)"),
+    ("sumpWidth",           "140 mm", "back wash-media sump width along X, hidden under the deployed piston [ADR-0017]"),
+    ("sumpLength",          "320 mm", "sump length across Y"),
+    ("sumpDepth",           "120 mm", "sump pit depth below the bore floor -> sewer"),
     ("servicePlantSize",    "900 mm", "back-of-house plant Y/Z envelope around the actuator (heater/steam, disinfectant reservoir + doser, dry-air blower, pump) [ADR-0015]"),
 ]
 
@@ -271,19 +274,24 @@ def build_luminaire(doc, sheet):
 
 
 def build_cleaning(doc, sheet):
-    """ADR-0015 + ADR-0016 cleaning subsystem -- SPACE CLAIM only (representative
+    """ADR-0015 / 0016 / 0017 cleaning subsystem -- SPACE CLAIM only (representative
     volumes, not selected components -- like the actuator geometry). The cell PUSHES
-    everything OUT the mouth and traps nothing; the service side stays sealed. So the
-    wash is motion-driven 'wash-in-transit' and ALL runoff + solids exit the mouth to a
-    flush pavement drain -- nothing vandalizable on the public face (priority #1).
+    everything OUT the mouth and traps nothing; the service side stays sealed. Motion-
+    driven 'wash-in-transit'. Drainage is SPLIT: gross SOLIDS ride the closing sweep out
+    the mouth to a flush pavement grate; the WASH MEDIA (hot water + detergent +
+    disinfectant) drains INTERNALLY to a back sump -> sewer, so hot chemical water never
+    sheets across the street. No cleaning hardware on the public face (priority #1).
       SprayRing     a ring hugging the barrel OUTSIDE near the mouth; flush nozzle tips
                     (not modeled) reach through the wall into the bore, so the piston
                     sweeps its face + walls past the spray -- no fixed obstruction in the
                     keep-out cavity (detergent -> 82-90 C hot water/steam -> disinfectant).
-      TrenchDrain   a flush, grated channel set into the PAVEMENT at the mouth base (the
-                    bore floor slopes out to it); ejected solids + wash water drop straight
-                    to sewer. Streetscape infrastructure, not an appendage -- bolted,
-                    walk-on, serviced from below; nothing on the street face to vandalize.
+      TrenchDrain   a flush, grated channel set into the PAVEMENT at the mouth base for
+                    the ejected SOLIDS + rain -> sewer. Streetscape infrastructure, not an
+                    appendage -- bolted, walk-on, serviced from below.
+      SumpDrain     the internal WASH-MEDIA drain: a sump in the bore floor at the deep
+                    end, positioned UNDER the piston when it is deployed to the very back,
+                    so it is never exposed in the occupied cavity or to the public. The
+                    floor slopes to it; hot water + chemicals drain here -> sewer (ADR-0017).
       ServicePlant  back-of-house envelope AROUND the actuator (hot-water/steam gen,
                     disinfectant reservoir + doser, dry-air blower, pump) -- widens the
                     cross-section but adds NO install depth (sits over the actuator zone).
@@ -308,7 +316,7 @@ def build_cleaning(doc, sheet):
     parts["SprayRing"] = ring
 
     # 2. flush pavement trench drain at the mouth base (ground = sill height below the
-    #    bore floor); the bore slopes out, so everything exits the mouth into it -> sewer
+    #    bore floor) -- catches the SOLIDS the closing sweep ejects, + rain -> sewer
     tw = sheet.trenchWidth.Value
     tdp = sheet.trenchDepth.Value
     tm = sheet.trenchMargin.Value
@@ -318,7 +326,19 @@ def build_cleaning(doc, sheet):
                                 App.Vector(-tw, -(w + 2 * tm) / 2.0, ground - tdp))
     parts["TrenchDrain"] = trench
 
-    # 3. back-of-house plant envelope wrapping the actuator zone (no added depth)
+    # 3. internal back sump: takes the WASH MEDIA (hot water + chemicals) to sewer,
+    #    hidden UNDER the piston when it is deployed to the very back (never in the open
+    #    cavity or on the public face); the bore floor slopes to it [ADR-0017]
+    pl = sheet.pistonLength.Value
+    sw = sheet.sumpWidth.Value
+    sl = sheet.sumpLength.Value
+    sdp = sheet.sumpDepth.Value
+    scx = bl - pl / 2.0                                       # mid deployed-piston body
+    sump = doc.addObject("Part::Feature", "SumpDrain")
+    sump.Shape = Part.makeBox(sw, sl, sdp, App.Vector(scx - sw / 2.0, -sl / 2.0, -(h / 2.0) - sdp))
+    parts["SumpDrain"] = sump
+
+    # 4. back-of-house plant envelope wrapping the actuator zone (no added depth)
     sp = sheet.servicePlantSize.Value
     plant = doc.addObject("Part::Feature", "ServicePlant")
     plant.Shape = Part.makeBox(gap + md, sp, sp, App.Vector(bl, -sp / 2.0, -sp / 2.0))
@@ -403,11 +423,12 @@ def main():
     print("--- ADR-0015 cleaning (space claim) ---")
     print(f"SprayRing: ring hugging the barrel, X={mbb.XMin:.0f}..{mbb.XMax:.0f}  "
           f"cavity intrusion={ring_in_cavity:.1f} mm^3 (want ~0: bore stays clear)")
-    for nm in ("TrenchDrain", "ServicePlant"):
+    for nm in ("TrenchDrain", "SumpDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
         print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")
-    print(f"TrenchDrain sits in front of the mouth (X<0) at pavement level, sill "
-          f"{sheet.sillHeight.Value:.0f} mm above ground -- flush, no street-face hardware")
+    sb = clean["SumpDrain"].Shape.BoundBox
+    print(f"TrenchDrain at pavement (solids); SumpDrain X={sb.XMin:.0f}..{sb.XMax:.0f} sits under the "
+          f"deployed piston ({sheet.cavityLength.Value:.0f}..{sheet.barrelLength.Value:.0f}) -> hidden when open")
     sp = sheet.servicePlantSize.Value
     print(f"back-of-house cross-section now ~{sp:.0f} mm sq (actuator magazine was "
           f"{sheet.magazineSize.Value:.0f}); install depth UNCHANGED at "
