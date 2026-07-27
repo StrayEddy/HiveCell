@@ -707,7 +707,7 @@ its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + 
   depth budget (ADR-0007/0008/0010).
 
 **Follow-ups.**
-- **CAD (`build_model.py`):** add space-claim parts — in-bore wash/squeegee ring, mouth
+- **CAD (`build_model.py`):** add space-claim parts — in-bore spray ring (SprayRing), mouth
   rinse bar, sloped floor + drain port, disinfectant reservoir + doser, heater/steam
   generator, dry-air blower/knife; convert component-tree #6 bosses from "reserved" to
   real geometry; re-export to twin (add to `PARTS`, ADR-0006).
@@ -734,6 +734,6 @@ its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + 
    (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
 6. Cleaning subsystem: specified in ADR-0015 (motion-driven wash-in-transit +
-   thermal-chemical sanitize, plumbed) — in-bore wash/squeegee ring, mouth rinse bar,
+   thermal-chemical sanitize, plumbed) — in-bore spray ring (SprayRing), mouth rinse bar,
    sloped tray + drain, heater/steam, disinfectant doser, dry-air; parts TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

@@ -94,7 +94,7 @@
   </g>
 
   <!-- ===== cleaning subsystem ===== -->
-  <!-- wash manifold: ring hugging the barrel near the mouth, nozzles into the bore -->
+  <!-- spray ring: nozzle ring hugging the barrel near the mouth, nozzles into the bore -->
   <rect x="226" y="160" width="20" height="20" class="plant"/>
   <rect x="226" y="372" width="20" height="20" class="plant"/>
   <line x1="248" y1="188" x2="266" y2="196" class="water" marker-end="url(#spray)"/>
@@ -230,11 +230,10 @@
   <!-- column 3 -->
   <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015)</text>
   <g transform="translate(940,530)">
-    <text x="0" y="16" class="fnname">10 · WashManifold  ← the one you asked about</text>
-    <text x="0" y="32" class="fntext">A ring of spray nozzles around the bore near the mouth. ("Manifold"</text>
-    <text x="0" y="46" class="fntext">= the header pipe feeding all the nozzles.) The piston sweeps its face</text>
-    <text x="0" y="60" class="fntext">and the walls PAST it while it jets detergent → 82–90 °C hot water /</text>
-    <text x="0" y="74" class="fntext">steam → disinfectant. This is the main wash.</text>
+    <text x="0" y="16" class="fnname">10 · SprayRing  — the main wash</text>
+    <text x="0" y="32" class="fntext">A ring of spray nozzles around the bore near the mouth. As the piston</text>
+    <text x="0" y="46" class="fntext">sweeps its face and the walls PAST it, it jets detergent → 82–90 °C</text>
+    <text x="0" y="60" class="fntext">hot water/steam → disinfectant. This is the main wash.</text>
 
     <text x="0" y="98" class="fnname">11 · MouthRinseBar</text>
     <text x="0" y="114" class="fntext">Nozzle bar at the top lip; washes the sill + the exterior face-edge</text>
