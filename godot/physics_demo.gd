@@ -202,6 +202,19 @@ func _build_world() -> void:
 	add_child(column)
 	_update_chain()
 
+	# ADR-0015..0020 cleaning subsystem: decorative space-claim meshes (no collision).
+	# Two spray rings + the traveling squeegee + its drive, the sump + trench drains,
+	# and the back-of-house plant -- exported at their CAD positions, so they land right.
+	var clean_col := _mat(Color(0.32, 0.46, 0.52), 0.55, 0.6)   # muted teal for the wash gear
+	var drain_col := _mat(Color(0.28, 0.30, 0.33), 0.7, 0.5)
+	for part in ["SprayRing", "ServiceSprayRing", "ServiceSqueegee", "SqueegeeDrive",
+			"SumpDrain", "TrenchDrain", "ServicePlant"]:
+		var mi := MeshInstance3D.new()
+		mi.mesh = load(MODELS + part + ".obj")
+		mi.name = part
+		mi.material_override = drain_col if part.ends_with("Drain") or part == "ServicePlant" else clean_col
+		add_child(mi)
+
 	# Ground: a large forgiving surface `sill_height` below the bore floor, so ejected
 	# items fall CLEAR of the mouth (the H4 siting rationale). Its top is at ground_y.
 	_static_box(Vector3(10.0, 0.2, 8.0), Vector3(stroke * 0.5, ground_y - 0.1, 0.0),

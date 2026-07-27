@@ -156,16 +156,21 @@ mat_mag = pbr("Magazine", (0.22, 0.23, 0.26), metallic=1.0, roughness=0.45)
 mat_chain = pbr("Chain", (0.45, 0.47, 0.50), metallic=1.0, roughness=0.35)
 mat_wall = pbr("Wall", (0.40, 0.40, 0.42), metallic=0.0, roughness=0.85)
 mat_floor = pbr("Floor", (0.16, 0.17, 0.18), metallic=0.0, roughness=0.95)
+mat_service = pbr("Service", (0.28, 0.31, 0.35), metallic=0.7, roughness=0.5)  # cleaning gear / plumbing
 
 PART_MAT = {
     "CapsuleShell": mat_steel, "Piston": mat_piston, "WiperSeals": mat_seal,
     "ChainMagazine": mat_mag, "ChainColumn": mat_chain,
+    # ADR-0015..0020 cleaning subsystem (space-claim parts)
+    "SprayRing": mat_service, "ServiceSprayRing": mat_service, "ServiceSqueegee": mat_seal,
+    "SqueegeeDrive": mat_mag, "SumpDrain": mat_service, "TrenchDrain": mat_service,
+    "ServicePlant": mat_mag,
 }
 
 # --- import the full model ---------------------------------------------------
 imported = {}
 for part in S["parts"]:
-    imported[part] = import_part(part, PART_MAT[part])
+    imported[part] = import_part(part, PART_MAT.get(part, mat_service))
 
 shell = bpy.data.objects["CapsuleShell"]
 bb = [shell.matrix_world @ Vector(c) for c in shell.bound_box]
@@ -410,5 +415,11 @@ for screen in bpy.data.screens:
 
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 print("saved", OUT_BLEND)
-bpy.ops.render.render(write_still=True)
-print("rendered", OUT_PREVIEW)
+# The preview render is a bonus -- hivecell.blend is already saved. Don't let a GPU
+# failure (e.g. a Cycles kernel that won't build for an old card) abort the build.
+try:
+    bpy.ops.render.render(write_still=True)
+    print("rendered", OUT_PREVIEW)
+except Exception as e:
+    print("preview render skipped (%s); hivecell.blend is saved. "
+          "Set sc.cycles.device='CPU' to render the preview without a GPU." % e)
