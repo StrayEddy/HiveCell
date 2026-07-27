@@ -20,7 +20,7 @@ DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
 PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine",
          # ADR-0015 cleaning subsystem (fixed space-claim parts)
-         "SprayRing", "ServiceSprayRing", "TrenchDrain", "SumpDrain", "ServicePlant"]
+         "SprayRing", "ServiceSprayRing", "ServiceSqueegee", "TrenchDrain", "SumpDrain", "ServicePlant"]
 # ChainColumn is drawn procedurally (variable length is physical for a chain)
 
 os.makedirs(OUTDIR, exist_ok=True)
@@ -66,7 +66,7 @@ manifest = {
     # Not a CAD dimension -- an install spec the twin renders (ground + wall context).
     "sill_height_m": 0.5,
     "retract_seconds_real": 600,     # ~10 min real-world retraction
-    "moving_parts": ["Piston", "WiperSeals"],  # seals ride with the piston; + procedural ChainColumn
+    "moving_parts": ["Piston", "WiperSeals", "ServiceSqueegee"],  # seals ride with the piston; the squeegee has its own drive; + procedural ChainColumn
     "parts": PARTS,
 }
 with open(os.path.join(OUTDIR, "hivecell.json"), "w") as f:

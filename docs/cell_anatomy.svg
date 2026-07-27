@@ -129,6 +129,14 @@
   <text x="228" y="450" class="small" fill="#2f8fd6">↓ to sewer</text>
 
   <!-- ===== drive / back-of-house ===== -->
+  <!-- ServiceSqueegee: traveling wiper stowed behind the deployed piston; scrubs the
+       sealed chamber + drives media to the sump (ADR-0019). Ring segments straddle the chain. -->
+  <rect x="989" y="200" width="13" height="68" fill="url(#hatch)" stroke="#39465e" stroke-width="1"/>
+  <rect x="989" y="284" width="13" height="68" fill="url(#hatch)" stroke="#39465e" stroke-width="1"/>
+  <line x1="345" y1="214" x2="986" y2="214" class="cut"/>
+  <path d="M345,214 l9,-4 l0,8 Z" fill="#39465e"/>
+  <text x="666" y="209" class="small" text-anchor="middle" fill="#39465e">ServiceSqueegee travels the sealed chamber — stows behind the piston ▸</text>
+
   <!-- chain column (variable-length rigid chain) -->
   <rect x="985" y="270" width="80" height="14" class="mag"/>
   <!-- return spring coil around the column (SF4) -->
@@ -167,6 +175,7 @@
     <g><circle cx="1000" cy="188" r="11" fill="#2b3a55"/><text x="1000" y="192" fill="#fff" text-anchor="middle">14</text></g>
     <g><circle cx="890" cy="406" r="11" fill="#2b3a55"/><text x="890" y="410" fill="#fff" text-anchor="middle">12</text><line x1="901" y1="404" x2="920" y2="384" class="leader"/></g>
     <g><circle cx="958" cy="158" r="11" fill="#2b3a55"/><text x="958" y="162" fill="#fff" text-anchor="middle">11</text><line x1="947" y1="160" x2="940" y2="168" class="leader"/></g>
+    <g><circle cx="1024" cy="330" r="11" fill="#2b3a55"/><text x="1024" y="334" fill="#fff" text-anchor="middle">15</text><line x1="1013" y1="328" x2="1002" y2="322" class="leader"/></g>
   </g>
 
   <!-- ===================== A-A CROSS SECTION INSET ===================== -->
@@ -183,7 +192,7 @@
   </g>
 
   <!-- key dimensions strip -->
-  <text x="40" y="474" class="dim">Key dims (mm): cavity length 2200 · width 1000 · height 1100 · wall 6 · piston length 300 · running clearance 3 (seals bridge it) · install depth ≈ 2860 (2.86 m) · mouth sill ≈ 500 above ground</text>
+  <text x="40" y="474" class="dim">Key dims (mm): cavity length 2200 · width 1000 · height 1100 · wall 6 · piston length 300 · running clearance 3 (seals bridge it) · install depth ≈ 2940 (2.94 m) · mouth sill ≈ 500 above ground</text>
 
   <!-- ===================== LEGEND ===================== -->
   <line x1="40" y1="492" x2="1360" y2="492" stroke="#d7dbe1" stroke-width="1"/>
@@ -236,7 +245,7 @@
   </g>
 
   <!-- column 3 -->
-  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0018)</text>
+  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0019)</text>
   <g transform="translate(940,530)">
     <text x="0" y="14" class="fnname">10 · SprayRing (front)</text>
     <text x="0" y="29" class="fntext">Nozzle ring just PAST the closed piston — sprays the sealed chamber's</text>
@@ -258,9 +267,13 @@
     <text x="0" y="229" class="fntext">Back-of-house box: hot-water/steam gen, disinfectant + doser, dry-air</text>
     <text x="0" y="242" class="fntext">blower, pump.</text>
 
-    <text x="0" y="270" class="fntext" fill="#7a818c">ADR-0015–0018: nothing on the public face — solids out the mouth, wash</text>
-    <text x="0" y="284" class="fntext" fill="#7a818c">media to the hidden sump; two rings wash the sealed chamber when closed.</text>
+    <text x="0" y="264" class="fnname">15 · ServiceSqueegee (traveling wiper)</text>
+    <text x="0" y="278" class="fntext">Runs the full sealed chamber while the piston is parked flush — a car</text>
+    <text x="0" y="290" class="fntext">wash over the stopped piston; scrubs + drives media to the sump. Hidden.</text>
+
+    <text x="0" y="314" class="fntext" fill="#7a818c">ADR-0015–0019: nothing on the public face; two rings + a traveling</text>
+    <text x="0" y="328" class="fntext" fill="#7a818c">squeegee wash the sealed chamber; media to the hidden sump.</text>
   </g>
 
-  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0018) for the reasoning behind each part.</text>
+  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0019) for the reasoning behind each part.</text>
 </svg>

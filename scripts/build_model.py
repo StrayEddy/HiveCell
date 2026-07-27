@@ -43,7 +43,9 @@ PARAMS = [
     ("sealLipCount",    "2",                             "wiper lips per piston: front + rear (gap fill + hygiene scrape)"),
     ("sealInterference","0.8 mm",                        "lip compression onto the bore (contact; used for drag)"),
     ("pistonLength",    "300 mm",                        "piston depth along X"),
-    ("barrelLength",    "=cavityLength + pistonLength",  "sleeve length: houses the deployed piston"),
+    ("squeegeeThickness","50 mm",                        "traveling service squeegee thickness along X [ADR-0019]"),
+    ("squeegeeStow",    "80 mm",                         "stow bay behind the deployed piston (extends the barrel) for the service squeegee [ADR-0019]"),
+    ("barrelLength",    "=cavityLength + pistonLength + squeegeeStow",  "sleeve: houses the deployed piston + the stowed service squeegee (ADR-0019)"),
     ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to magazine front"),
     ("chainWidth",      "60 mm",                         "rigid-chain cross-section width Y (representative)"),
     ("chainHeight",     "60 mm",                         "rigid-chain cross-section height Z (representative)"),
@@ -307,6 +309,8 @@ def build_cleaning(doc, sheet):
     bl = sheet.barrelLength.Value
     gap = sheet.actuatorGap.Value
     md = sheet.magazineDepth.Value
+    pl = sheet.pistonLength.Value
+    c = sheet.runningClearance.Value
     parts = {}
 
     # 1. in-bore spray ring: nozzle ring OUTSIDE the barrel (bore stays clear)
@@ -330,6 +334,21 @@ def build_cleaning(doc, sheet):
     sring.Shape = souter.cut(sinner)
     parts["ServiceSprayRing"] = sring
 
+    # 1c. traveling service squeegee: a wiper that runs the FULL sealed chamber while the
+    #     piston is parked flush -- a car wash over the stopped piston, scrubbing from inside
+    #     the bore + driving the wash media to the sump. Modeled STOWED behind the deployed
+    #     piston (in the barrel's stow bay); lives entirely service-side, never seen by the
+    #     user. Needs its own light drive (fights only wiper drag, not seal pressure) [ADR-0019]
+    sqth = sheet.squeegeeThickness.Value
+    sqx = sheet.cavityLength.Value + pl                       # right behind the deployed piston back
+    band = 120.0                                             # radial wiper-band width
+    qouter = rounded_box_shape(w - 2 * c, h - 2 * c, sqth, r - c, x0=sqx)
+    qinner = rounded_box_shape(w - 2 * c - 2 * band, h - 2 * c - 2 * band, sqth + 2.0,
+                               max(0.0, r - c - band), x0=sqx - 1.0)
+    squeegee = doc.addObject("Part::Feature", "ServiceSqueegee")
+    squeegee.Shape = qouter.cut(qinner)
+    parts["ServiceSqueegee"] = squeegee
+
     # 2. flush pavement trench drain at the mouth base (ground = sill height below the
     #    bore floor) -- catches the SOLIDS the closing sweep ejects, + rain -> sewer
     tw = sheet.trenchWidth.Value
@@ -344,11 +363,10 @@ def build_cleaning(doc, sheet):
     # 3. internal back sump: takes the WASH MEDIA (hot water + chemicals) to sewer,
     #    hidden UNDER the piston when it is deployed to the very back (never in the open
     #    cavity or on the public face); the bore floor slopes to it [ADR-0017]
-    pl = sheet.pistonLength.Value
     sw = sheet.sumpWidth.Value
     sl = sheet.sumpLength.Value
     sdp = sheet.sumpDepth.Value
-    scx = bl - pl / 2.0                                       # mid deployed-piston body
+    scx = sheet.cavityLength.Value + pl / 2.0                 # mid deployed-piston body (robust to barrel length)
     sump = doc.addObject("Part::Feature", "SumpDrain")
     sump.Shape = Part.makeBox(sw, sl, sdp, App.Vector(scx - sw / 2.0, -sl / 2.0, -(h / 2.0) - sdp))
     parts["SumpDrain"] = sump
@@ -402,7 +420,8 @@ def main():
     print(f"expected (bore-2c):     X={sheet.pistonLength.Value:.0f}  "
           f"Y={sheet.cavityWidth.Value - 2 * c:.0f}  Z={sheet.interiorHeight.Value - 2 * c:.0f}")
     print(f"deployed front face X={pbb.XMin:.0f} (want {sheet.cavityLength.Value:.0f})  "
-          f"back X={pbb.XMax:.0f} (want barrelLength {L:.0f})")
+          f"back X={pbb.XMax:.0f} (want {sheet.cavityLength.Value + sheet.pistonLength.Value:.0f}; "
+          f"barrel {L:.0f} adds a stow bay behind it, ADR-0019)")
     print(f"piston<->wall overlap volume={overlap:.1f} mm^3 (want ~0: {c:.0f} mm clearance)")
 
     sbb = seals.Shape.BoundBox
@@ -441,6 +460,9 @@ def main():
           f"{sheet.pistonLength.Value:.0f})  cavity intrusion={ref_body.Shape.common(ring.Shape).Volume:.1f} (want ~0)")
     print(f"ServiceSprayRing (deep): X={smbb.XMin:.0f}..{smbb.XMax:.0f} (behind deployed face "
           f"{sheet.cavityLength.Value:.0f})  cavity intrusion={ref_body.Shape.common(sring.Shape).Volume:.1f} (want ~0: never in cavity)")
+    qbb = clean["ServiceSqueegee"].Shape.BoundBox
+    print(f"ServiceSqueegee (traveling wiper): stows X={qbb.XMin:.0f}..{qbb.XMax:.0f} behind the deployed "
+          f"piston; travels the sealed chamber when the piston is parked flush")
     for nm in ("TrenchDrain", "SumpDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
         print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")

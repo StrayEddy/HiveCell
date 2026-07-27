@@ -864,6 +864,58 @@ re-export + diagram updated.
 
 ---
 
+## ADR-0019 — Cleaning method: spray-and-squeegee + a traveling service-side squeegee
+**Date:** 2026-07-27
+**Status:** Accepted (method + component). Stow via option (b), a deeper chamber. Drive + wash
+hydraulics TBD.
+
+**Context.** With the spray stations set (ADR-0018), how does the wash actually clean the full
+2.2 m bore and use the drain? Options surveyed: (1) fixed rings + the piston's own seals as the
+squeegee; (2) many distributed rings; (3) nozzles on the moving piston; (4) flood-and-soak
+immersion; plus a recirculating loop as a cross-cutting enhancement. The syringe already owns a
+full-length squeegee — the piston's wiper seals — so coverage can come from MECHANICAL spreading,
+not spray reach, favouring few stations (Option 1). But there's a gap: during the sealed-chamber
+wash the piston is PARKED flush, so it can't traverse the chamber to scrub it.
+
+**Decision.**
+1. **Method = Option 1 (spray-and-squeegee).** The two fixed rings (ADR-0018) wet + dose + hot
+   rinse; scrub + spread + drive-to-drain are done by wipers, not spray reach. A recirculating
+   loop is added later only if coverage/sanitize proves marginal.
+2. **Add a traveling service squeegee (`ServiceSqueegee`).** A wiper that runs the FULL sealed
+   chamber while the piston is parked flush — a car wash over the stopped piston, scrubbing from
+   inside the bore and driving the wash media to the sump. It lives ENTIRELY on the service side /
+   hidden — never seen by the occupant, nothing on the public face.
+3. **Stow via a deeper chamber (option b).** The barrel is extended by `squeegeeStow` (80 mm) so
+   the squeegee stows behind the deployed piston when the cell is open. Cost: install depth
+   2.86 → **2.94 m**. Chosen over (a) a thin disc in the actuator gap (too tight, fouls the chain)
+   and (c) nesting it on the piston carrier (most mechanism).
+
+**Cycle.** Close (eject solids out the mouth) → rings spray → squeegee traverses the chamber
+scrubbing + pushing media to the sump → hot rinse + final squeegee pass → dry → open (squeegee
+retreats into the stow bay behind the piston).
+
+**Why.** Keeps the syringe-native squeegee idea but gives it a dedicated traveler, closing the
+parked-piston coverage gap at full-length scrub quality for the worst-case hygiene case. Keeping
+it service-side costs nothing in vandal resistance or occupant space.
+
+**Rejected alternatives.** Distributed rings (#2): more penetrations/plumbing/service. Nozzles on
+the moving piston (#3): a fluid line on the moving, occupant-contacting part. Immersion (#4): asks
+a wiper seal to hold a water column; water/energy/drying/freeze. All revisitable if bench tests demand.
+
+**Accepted costs / to verify.**
+- A SECOND moving mechanism + its own light drive (fights only wiper drag, not seal pressure),
+  hidden service-side. Against simplicity, bought for hygiene.
+- +80 mm install depth for the stow bay (against the ADR-0008/0010 shallow-depth budget).
+- The squeegee shares the bore axis with the central chain/rod — confirm the passage/clearance.
+- Bench gates (from the survey): does the wiper spread + scrub a full-length film; is
+  spray+squeegee+heat+chemical enough log-reduction or is immersion needed; water/energy per cycle;
+  does gravity + squeegee actually clear the sump.
+
+**Follow-ups.** CAD: `ServiceSqueegee` added, barrel extended (space claim); its drive is TBD.
+Twin: a new mover (added to `moving_parts`) — animate its traverse. Re-export + diagram.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -876,8 +928,8 @@ re-export + diagram updated.
    pressure-sensitive safety edge, external/operator e-stop + passive flush latch
    (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
-6. Cleaning subsystem: ADR-0015 + 0016 + 0017 (motion-driven wash-in-transit, thermal-chemical
-   sanitize, plumbed; solids exit the mouth to a flush pavement grate, wash media drains to an
-   internal piston-hidden back sump — no street-face hardware) — SprayRing, TrenchDrain,
-   SumpDrain, ServicePlant + a deep hidden ServiceSprayRing (ADR-0018); sizing TBD in build_model.py.
+6. Cleaning subsystem: ADR-0015–0019 (spray-and-squeegee wash, thermal-chemical sanitize, plumbed;
+   solids out the mouth to a flush pavement grate, wash media to an internal piston-hidden sump —
+   no street-face hardware) — SprayRing + deep ServiceSprayRing, a traveling ServiceSqueegee,
+   SumpDrain, TrenchDrain, ServicePlant; drive + hydraulics TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

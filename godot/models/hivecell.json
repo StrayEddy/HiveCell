@@ -1,9 +1,9 @@
 {
   "stroke_m": 2.2,
-  "barrel_length_m": 2.5,
-  "install_depth_m": 2.86,
-  "piston_rear_deployed_m": 2.5,
-  "magazine_front_m": 2.56,
+  "barrel_length_m": 2.58,
+  "install_depth_m": 2.94,
+  "piston_rear_deployed_m": 2.58,
+  "magazine_front_m": 2.64,
   "chain_width_m": 0.06,
   "chain_height_m": 0.06,
   "interior_height_m": 1.1,
@@ -18,7 +18,8 @@
   "retract_seconds_real": 600,
   "moving_parts": [
     "Piston",
-    "WiperSeals"
+    "WiperSeals",
+    "ServiceSqueegee"
   ],
   "parts": [
     "CapsuleShell",
@@ -27,6 +28,7 @@
     "ChainMagazine",
     "SprayRing",
     "ServiceSprayRing",
+    "ServiceSqueegee",
     "TrenchDrain",
     "SumpDrain",
     "ServicePlant"
