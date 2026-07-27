@@ -18,7 +18,10 @@ import MeshPart
 
 DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
-PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine"]  # ChainColumn is drawn procedurally (variable length is physical for a chain)
+PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine",
+         # ADR-0015 cleaning subsystem (fixed space-claim parts)
+         "WashManifold", "MouthRinseBar", "DropTray", "FloorDrain", "ServicePlant"]
+# ChainColumn is drawn procedurally (variable length is physical for a chain)
 
 os.makedirs(OUTDIR, exist_ok=True)
 doc = App.open(DOC)

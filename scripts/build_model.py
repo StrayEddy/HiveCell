@@ -53,6 +53,15 @@ PARAMS = [
     ("luminaireDepth",  "4 mm",                          "diffuser recess into the crown wall (< wallThickness)"),
     ("luminaireEndMargin", "150 mm",                     "strip setback from each cavity end along X"),
     ("luminaireLength", "=cavityLength - 2 * luminaireEndMargin", "lit length along X (derived)"),
+    # --- ADR-0015 cleaning subsystem: SPACE CLAIM (representative, not selected) ---
+    ("washManifoldRadial",  "50 mm",  "in-bore wash manifold ring radial thickness, hugging the barrel [ADR-0015]"),
+    ("washManifoldDepth",   "80 mm",  "wash manifold extent along X (near the mouth)"),
+    ("washManifoldSetback", "40 mm",  "manifold setback from the mouth plane along X"),
+    ("rinseBarSize",        "50 mm",  "mouth rinse-bar cross-section across the top lip [ADR-0015]"),
+    ("dropTrayDepth",       "500 mm", "drop/catch tray extent along X, in front of the mouth [ADR-0013/0015]"),
+    ("dropTrayDrop",        "120 mm", "tray depth Z below the outer floor (sloped to the drain)"),
+    ("drainPortDia",        "75 mm",  "floor drain port diameter at the bore low point -> sewer"),
+    ("servicePlantSize",    "900 mm", "back-of-house plant Y/Z envelope around the actuator (heater/steam, disinfectant reservoir + doser, dry-air blower, pump) [ADR-0015]"),
 ]
 
 
@@ -261,6 +270,75 @@ def build_luminaire(doc, sheet):
     return lum
 
 
+def build_cleaning(doc, sheet):
+    """ADR-0015 cleaning subsystem -- SPACE CLAIM only (representative volumes, not
+    selected components -- like the actuator geometry). Reserves room for the
+    motion-driven 'wash-in-transit':
+      WashManifold  a ring hugging the barrel OUTSIDE near the mouth; flush nozzle tips
+                    (not modeled) reach through the wall into the bore, so the piston
+                    sweeps its face + walls past the spray -- no fixed obstruction in the
+                    keep-out cavity (detergent -> 82-90 C hot water/steam -> disinfectant).
+      MouthRinseBar a bar across the top lip at the opening; cleans the sill + the
+                    exterior piston face-edge during the crack-open purge.
+      DropTray      sloped catch tray below/in front of the mouth (ADR-0013 drop zone),
+                    flushed -> sewer.
+      FloorDrain    port at the bore low point -> sewer.
+      ServicePlant  back-of-house envelope AROUND the actuator (hot-water/steam gen,
+                    disinfectant reservoir + doser, dry-air blower, pump) -- widens the
+                    cross-section but adds NO install depth (sits over the actuator zone).
+    Public opening is at X=0; +X runs into the wall (service side)."""
+    w = sheet.cavityWidth.Value
+    h = sheet.interiorHeight.Value
+    r = sheet.cornerRadius.Value
+    t = sheet.wallThickness.Value
+    bl = sheet.barrelLength.Value
+    gap = sheet.actuatorGap.Value
+    md = sheet.magazineDepth.Value
+    parts = {}
+
+    # 1. in-bore wash manifold: ring OUTSIDE the barrel (bore stays clear)
+    mr = sheet.washManifoldRadial.Value
+    mdp = sheet.washManifoldDepth.Value
+    ms0 = sheet.washManifoldSetback.Value
+    outer = rounded_box_shape(w + 2 * t + 2 * mr, h + 2 * t + 2 * mr, mdp, r + t + mr, x0=ms0)
+    inner = rounded_box_shape(w + 2 * t, h + 2 * t, mdp + 2.0, r + t, x0=ms0 - 1.0)
+    man = doc.addObject("Part::Feature", "WashManifold")
+    man.Shape = outer.cut(inner)
+    parts["WashManifold"] = man
+
+    # 2. mouth rinse bar across the top lip, just outside the opening (X<0)
+    rb = sheet.rinseBarSize.Value
+    bar = doc.addObject("Part::Feature", "MouthRinseBar")
+    bar.Shape = Part.makeBox(rb, w, rb, App.Vector(-rb, -w / 2.0, h / 2.0 - rb))
+    parts["MouthRinseBar"] = bar
+
+    # 3. sloped drop/catch tray below + in front of the mouth
+    td = sheet.dropTrayDepth.Value
+    tdr = sheet.dropTrayDrop.Value
+    floor_out = h / 2.0 + t
+    tray = doc.addObject("Part::Feature", "DropTray")
+    tray.Shape = Part.makeBox(td, w + 2 * t, tdr,
+                              App.Vector(-td, -(w + 2 * t) / 2.0, -(floor_out + tdr)))
+    parts["DropTray"] = tray
+
+    # 4. floor drain port at the bore low point -> sewer
+    dd = sheet.drainPortDia.Value
+    drain = doc.addObject("Part::Feature", "FloorDrain")
+    drain.Shape = Part.makeCylinder(dd / 2.0, t + 60.0,
+                                    App.Vector(bl - 400.0, 0, -(h / 2.0) + 1.0),
+                                    App.Vector(0, 0, -1))
+    parts["FloorDrain"] = drain
+
+    # 5. back-of-house plant envelope wrapping the actuator zone (no added depth)
+    sp = sheet.servicePlantSize.Value
+    plant = doc.addObject("Part::Feature", "ServicePlant")
+    plant.Shape = Part.makeBox(gap + md, sp, sp, App.Vector(bl, -sp / 2.0, -sp / 2.0))
+    parts["ServicePlant"] = plant
+
+    doc.recompute()
+    return parts
+
+
 def main():
     if App.ActiveDocument and App.ActiveDocument.Name == "HiveCell":
         App.closeDocument("HiveCell")
@@ -273,6 +351,7 @@ def main():
     seals = build_wiper_seals(doc, sheet)
     build_chain_actuator(doc, sheet)
     lum = build_luminaire(doc, sheet)
+    clean = build_cleaning(doc, sheet)
     ref_body.Visibility = False  # keep-out is a reference; hide so the shell shows
 
     doc.recompute()
@@ -327,6 +406,21 @@ def main():
           f"(crown Z={sheet.interiorHeight.Value / 2:.0f}..{sheet.interiorHeight.Value / 2 + sheet.luminaireDepth.Value:.0f})")
     print(f"lum<->cavity intrusion={lum_in_cavity:.1f} mm^3 (want ~0: flush, no keep-out steal)  "
           f"lum<->wall seated={lum_in_wall / 1000.0:.1f} cm^3 (want ~full: in the crown wall)")
+
+    # ADR-0015 cleaning subsystem (space claim) --------------------------------
+    man = clean["WashManifold"]
+    man_in_cavity = ref_body.Shape.common(man.Shape).Volume
+    mbb = man.Shape.BoundBox
+    print("--- ADR-0015 cleaning (space claim) ---")
+    print(f"WashManifold: ring hugging the barrel, X={mbb.XMin:.0f}..{mbb.XMax:.0f}  "
+          f"cavity intrusion={man_in_cavity:.1f} mm^3 (want ~0: bore stays clear)")
+    for nm in ("MouthRinseBar", "DropTray", "FloorDrain", "ServicePlant"):
+        b = clean[nm].Shape.BoundBox
+        print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZLength:.0f} mm")
+    sp = sheet.servicePlantSize.Value
+    print(f"back-of-house cross-section now ~{sp:.0f} mm sq (actuator magazine was "
+          f"{sheet.magazineSize.Value:.0f}); install depth UNCHANGED at "
+          f"{install_depth:.0f} mm ({install_depth / 1000:.2f} m) -- plant wraps the actuator zone")
 
 
 main()

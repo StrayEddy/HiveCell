@@ -605,6 +605,122 @@ with a photometric spec.
 
 ---
 
+## ADR-0015 — Cleaning: motion-driven wash-in-transit + thermal-chemical sanitize, plumbed
+**Date:** 2026-07-27
+**Status:** Accepted (architecture + method); part selection, sizing, sewer-discharge
+compliance and freeze design TBD. Specifies the deferred component-tree item 6.
+
+**Context.** Until now "cleaning" was only the piston's dry wiper sweep (ADR-0001):
+mechanically squeegee the bore and eject loose solids out the mouth. The real cleaning
+subsystem was deferred ("reserve mounting bosses and space claim"). Users are assumed
+intoxicated / unwell / vulnerable, so the design case is **bodily fluids every cycle**,
+not dust — a dry wiper cannot sanitize, cannot remove fluid films, and just smears
+biofilm. Two topology facts drive the whole design:
+1. The **piston face** is both the occupant's backrest AND the flush public wall
+   (ADR-0001). It is public-side when closed (street grime, graffiti, ejected splatter)
+   and interior when open — it swaps a contaminated exterior surface straight onto the
+   next sleeper.
+2. The **mouth sill / bottom lip** catches everything swept out (ADR-0013 drop tray).
+Both are on the **public** side and are **never inside a sealed chamber**, so a flooded
+"seal the service side and wash the box" CIP reaches the bore walls but never the two
+dirtiest surfaces. Siting assumption (new): the unit is plumbed to **city mains water +
+sewer**, so wet wash + drain is available (vs a self-contained tank).
+
+**Decision.** Design for the worst case (fluids every cycle) with a **motion-driven
+"wash-in-transit"** subsystem — fixed cleaning stations the piston sweeps *past*, using
+its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + chemical**.
+1. **Debris (existing).** The closing sweep ejects big items out the mouth to the tray,
+   so interior residual is **liquids + fines only → no macerator** on the drain.
+2. **In-bore wash / squeegee ring (fixed station).** The piston face and bore walls pass
+   through it every stroke: pre-rinse → dosed detergent → **82–90 °C hot-water/steam
+   sanitize** → **metered chemical disinfectant** → full-perimeter squeegee. Runoff to a
+   sloped floor + drain port → sewer.
+3. **Thermal + chemical sanitize.** Hot water/steam covers most pathogens; a **metered
+   disinfectant dose** closes the spore gap (*C. diff* / norovirus) that thermal alone
+   misses — justified by the every-cycle vulnerable-user case. Chemical is a refill
+   consumable.
+4. **Mouth rinse bar + flushed sloped tray.** A rinse bar at the mouth lip washes the
+   sill; the ADR-0013 drop tray becomes a sloped, flushed catch basin → same sewer line.
+5. **Pre-present purge + dry choreography (on open, before the next guest):**
+   a. **Crack open** ~a piston-width; the rinse bar cleans the exposed exterior
+      face-edge + mouth.
+   b. **Close** to squeegee/push it all out over the sill into the tray → drain
+      (repeat 1–2× as agitation).
+   c. **Open a second time with a drying dwell** — pause partly open at a drying station
+      (warm-air knife + the squeegee ring) to dry the face and near-bore, **then** open
+      fully. Presents the cell **clean and dry**.
+   The deep clean happens on the previous guest's **close**; the purge + dry-dwell happen
+   on **open**, so the face is cleaned *on the way in, every time* and street grime picked
+   up while closed can never reach an occupant. The small aperture + immediate squeegee-out
+   make the purge **self-containing** — no wet cell is ever fully exposed to the street.
+
+**Why.**
+- **Worst-case fluids demand wet wash + sanitize + dry.** A dry sweep can't do any of the
+  three; this is priority #2 (hygiene) for a non-self-rescue user.
+- **Wash-in-transit reaches what a sealed CIP can't** — the piston face and near-mouth
+  band — by reusing the existing stroke. Few added parts (fixed nozzles, squeegee ring,
+  rinse bar) keeps faith with simplicity/reliability/cost.
+- **The purge cleans the two public-side surfaces right before presenting**, and is
+  contained by choreography rather than by adding a shroud.
+- **Thermal + chemical** — heat is cheap and logistics-free and kills most pathogens; the
+  chemical dose covers spores for the worst case. Plumbed mains+sewer makes both viable.
+
+**Rejected alternatives.**
+- **Pyrolytic burn-to-ash (self-cleaning-oven, ~480 °C):** heats a ~2 m steel bore every
+  cycle (kills priority #5/#7); destroys the wiper seals, crown luminaire (ADR-0014) and
+  the radar/thermal/CO2/load occupancy sensors (ADR-0012); thermally warps the 3 mm
+  running fit; emits smoke/VOCs on a public street; and the heat-up/cool-down wrecks
+  turnaround. Heat is retained only as **thermal sanitization (≤~90 °C)**, never
+  incineration.
+- **Flooded sealed-chamber CIP only:** cannot reach the piston face or the mouth sill.
+- **Dry mechanical sweep only (status quo):** no sanitize; smears fluids/biofilm.
+- **Waterless (UV-C / consumable liner) only:** UV-C is line-of-sight (shadowed by soil),
+  degrades seals/diffuser, and removes no fluid; liners need restocking (not unattended).
+  UV-C survives only as an optional dry finisher.
+- **Interior macerator:** unneeded once the sweep ejects big items first.
+- **Thermal-only sanitize:** misses spores; rejected for the every-cycle worst case.
+
+**Accepted costs / constraints / to verify.**
+- **Material spec (hard, new).** Every wetted part — wiper seals (SF3), luminaire diffuser
+  (ADR-0014), sensors behind splash gaskets — must tolerate **~90 °C + water + detergent +
+  disinfectant, repeatedly**. Constrains SF3 and ADR-0014.
+- **Chemical = a consumable.** Breaks pure unattended operation: a disinfectant reservoir
+  to refill + monitor. Dosing must **fail safe** — empty/failed dose ⇒ flag + fall back to
+  thermal, never report "sanitized".
+- **Sewer discharge compliance.** Disinfectant + wash effluent must meet municipal
+  trade-effluent limits (dilution/neutralization) — a permitting item.
+- **Seal wear / drag budget (ADR-0011).** The purge (1–2×) and wash strokes add wiper
+  passes over the bore; bound the cycle count and add it to the seal-life + drag budget.
+- **Drying is mandatory** (no wet backrest): warm-air knife + squeegee ring; the air
+  heater adds energy — bound it.
+- **Safety at the mouth.** Crack-purge strokes are in the near-flush **no-occupant** zone
+  (ADR-0009), but a reach-in is possible ⇒ the **mouth-plane presence sensor** (ADR-0012
+  optional channel E) is **promoted to required**, with the SF2 safety edge and an SF5
+  "cleaning — stand clear" signal. Gate the exterior rinse on presence.
+- **Freeze protection.** Outdoor unit: trace-heat / self-drain the exterior nozzles, tray,
+  mains and drain.
+- **Water + energy per cycle.** Quantify liters (in-bore wash + 1–2 purges + hot sanitize)
+  and heater energy; challenges priority #5 (low energy), accepted for hygiene #2.
+- **Backflow prevention** on the potable mains connection.
+- **Space claim / install depth.** Nozzles, manifold, heater/steam gen, disinfectant
+  reservoir + doser, dry-air blower and drain must fit the service chamber; update the
+  depth budget (ADR-0007/0008/0010).
+
+**Follow-ups.**
+- **CAD (`build_model.py`):** add space-claim parts — in-bore wash/squeegee ring, mouth
+  rinse bar, sloped floor + drain port, disinfectant reservoir + doser, heater/steam
+  generator, dry-air blower/knife; convert component-tree #6 bosses from "reserved" to
+  real geometry; re-export to twin (add to `PARTS`, ADR-0006).
+- **Safety:** promote ADR-0012 channel E (mouth-plane presence) to required; SF5 add the
+  cleaning-cycle signal; SAFETY.md carry the wash/purge hazards + water-on-public.
+- **Materials:** 90 °C / wet / chemical-tolerant seals, diffuser, gaskets (SF3, ADR-0014).
+- **Analysis:** water + energy + chemical per cycle; sewer-discharge compliance; freeze.
+- **Twin / render:** the digital twin and the cinematic S3 should depict this exact
+  choreography (crack → purge → close → open-with-dry-dwell → full open) — the film's
+  "cleaning" is now grounded in a real mechanism, not an invented glow.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -617,5 +733,7 @@ with a photometric spec.
    pressure-sensitive safety edge, external/operator e-stop + passive flush latch
    (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
-6. Cleaning subsystem: deferred; reserve mounting bosses and space claim.
+6. Cleaning subsystem: specified in ADR-0015 (motion-driven wash-in-transit +
+   thermal-chemical sanitize, plumbed) — in-bore wash/squeegee ring, mouth rinse bar,
+   sloped tray + drain, heater/steam, disinfectant doser, dry-air; parts TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

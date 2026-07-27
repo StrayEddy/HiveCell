@@ -24,6 +24,11 @@
     "CapsuleShell",
     "Piston",
     "WiperSeals",
-    "ChainMagazine"
+    "ChainMagazine",
+    "WashManifold",
+    "MouthRinseBar",
+    "DropTray",
+    "FloorDrain",
+    "ServicePlant"
   ]
 }
