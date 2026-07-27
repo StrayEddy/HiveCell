@@ -247,6 +247,46 @@ bpy.ops.object.transform_apply(scale=True, rotation=True)
 lum.location = (lum_cx, lum_y, z_ceil)          # flush at the ceiling plane
 lum.data.materials.append(lum_mat)
 
+# --- ADR-0015..0020 canonical cell animation (single source of truth) ---------
+# Authored HERE so hivecell.blend OWNS how the machine moves; narrative.blend hard-
+# links these actions (read-only) and re-times them per shot via NLA (see
+# blender/narrative_link_clean.py). Frames 1..CLEAN_END at 24 fps.
+#   piston x =  0    -> DEPLOYED (retracted to the service side, cavity OPEN)
+#   piston x = -STK  -> FLUSH at the mouth (cell CLOSED); the bore to wash is the
+#                       sealed chamber BEHIND the flush face.
+#   squeegee x = 0   -> stowed at the deep end;  x = -TRAVEL -> swept to the piston back.
+def _clean_action(obj, name, keys, idx=0):
+    if obj.animation_data:
+        obj.animation_data_clear()
+    obj.animation_data_create()
+    for f, v in keys:
+        obj.location[idx] = v
+        obj.keyframe_insert("location", index=idx, frame=f)
+    act = obj.animation_data.action
+    act.name = name
+    act.use_fake_user = True          # survive being link-only (no local user in narrative)
+    return act
+
+STK = S["cavity_length_m"]                                 # piston stroke (deployed->flush)
+_sq = bpy.data.objects["ServiceSqueegee"]
+_sqbb = [_sq.matrix_world @ Vector(c) for c in _sq.bound_box]
+_sqx = sum(v.x for v in _sqbb) / len(_sqbb)                # squeegee stow centre (X)
+TRAVEL = max(0.5, _sqx - 0.35)                             # sweep up to just behind the flush piston
+CLEAN_END = 168
+
+# piston: enters CLOSED (the film's S2 present ends flush), holds through the wash,
+# then opens with a short drying dwell (ADR-0015 purge choreography).
+_pk = [(1, -STK), (110, -STK), (128, -1.55), (140, -1.55), (162, 0.0), (CLEAN_END, 0.0)]
+_clean_action(bpy.data.objects["Piston"], "HC_Piston_Clean", _pk)
+_clean_action(bpy.data.objects["WiperSeals"], "HC_WiperSeals_Clean", _pk)
+# service squeegee: two full chamber passes while the piston is parked flush.
+_qk = [(1, 0.0), (8, 0.0), (32, -TRAVEL), (56, 0.0), (80, -TRAVEL), (104, 0.0), (CLEAN_END, 0.0)]
+_clean_action(_sq, "HC_Squeegee_Clean", _qk)
+bpy.context.scene.frame_start = 1
+bpy.context.scene.frame_end = CLEAN_END
+bpy.context.scene.frame_set(CLEAN_END)                     # preview still shows the OPEN cell
+print("clean-cycle authored: STK=%.2f TRAVEL=%.2f (squeegee stow X=%.2f)" % (STK, TRAVEL, _sqx))
+
 # --- lighting (studio 3-point + soft world) ----------------------------------
 world = bpy.data.worlds.new("W")
 world.use_nodes = True
