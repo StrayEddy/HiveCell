@@ -57,10 +57,10 @@ PARAMS = [
     ("sprayRingRadial",  "50 mm",  "in-bore spray-ring radial thickness, hugging the barrel [ADR-0015]"),
     ("sprayRingDepth",   "80 mm",  "spray-ring extent along X (near the mouth)"),
     ("sprayRingSetback", "40 mm",  "spray-ring setback from the mouth plane along X"),
-    ("rinseBarSize",        "50 mm",  "mouth rinse-bar cross-section across the top lip [ADR-0015]"),
-    ("dropTrayDepth",       "500 mm", "drop/catch tray extent along X, in front of the mouth [ADR-0013/0015]"),
-    ("dropTrayDrop",        "120 mm", "tray depth Z below the outer floor (sloped to the drain)"),
-    ("drainPortDia",        "75 mm",  "floor drain port diameter at the bore low point -> sewer"),
+    ("sillHeight",          "500 mm", "mouth sill height above the pavement [ADR-0013]"),
+    ("trenchWidth",         "300 mm", "pavement trench-drain width along X, in front of the mouth [ADR-0016]"),
+    ("trenchDepth",         "120 mm", "trench-drain channel depth Z"),
+    ("trenchMargin",        "120 mm", "trench length beyond the cavity width on each side (Y)"),
     ("servicePlantSize",    "900 mm", "back-of-house plant Y/Z envelope around the actuator (heater/steam, disinfectant reservoir + doser, dry-air blower, pump) [ADR-0015]"),
 ]
 
@@ -271,18 +271,19 @@ def build_luminaire(doc, sheet):
 
 
 def build_cleaning(doc, sheet):
-    """ADR-0015 cleaning subsystem -- SPACE CLAIM only (representative volumes, not
-    selected components -- like the actuator geometry). Reserves room for the
-    motion-driven 'wash-in-transit':
+    """ADR-0015 + ADR-0016 cleaning subsystem -- SPACE CLAIM only (representative
+    volumes, not selected components -- like the actuator geometry). The cell PUSHES
+    everything OUT the mouth and traps nothing; the service side stays sealed. So the
+    wash is motion-driven 'wash-in-transit' and ALL runoff + solids exit the mouth to a
+    flush pavement drain -- nothing vandalizable on the public face (priority #1).
       SprayRing     a ring hugging the barrel OUTSIDE near the mouth; flush nozzle tips
                     (not modeled) reach through the wall into the bore, so the piston
                     sweeps its face + walls past the spray -- no fixed obstruction in the
                     keep-out cavity (detergent -> 82-90 C hot water/steam -> disinfectant).
-      MouthRinseBar a bar across the top lip at the opening; cleans the sill + the
-                    exterior piston face-edge during the crack-open purge.
-      DropTray      sloped catch tray below/in front of the mouth (ADR-0013 drop zone),
-                    flushed -> sewer.
-      FloorDrain    port at the bore low point -> sewer.
+      TrenchDrain   a flush, grated channel set into the PAVEMENT at the mouth base (the
+                    bore floor slopes out to it); ejected solids + wash water drop straight
+                    to sewer. Streetscape infrastructure, not an appendage -- bolted,
+                    walk-on, serviced from below; nothing on the street face to vandalize.
       ServicePlant  back-of-house envelope AROUND the actuator (hot-water/steam gen,
                     disinfectant reservoir + doser, dry-air blower, pump) -- widens the
                     cross-section but adds NO install depth (sits over the actuator zone).
@@ -306,30 +307,18 @@ def build_cleaning(doc, sheet):
     ring.Shape = outer.cut(inner)
     parts["SprayRing"] = ring
 
-    # 2. mouth rinse bar across the top lip, just outside the opening (X<0)
-    rb = sheet.rinseBarSize.Value
-    bar = doc.addObject("Part::Feature", "MouthRinseBar")
-    bar.Shape = Part.makeBox(rb, w, rb, App.Vector(-rb, -w / 2.0, h / 2.0 - rb))
-    parts["MouthRinseBar"] = bar
+    # 2. flush pavement trench drain at the mouth base (ground = sill height below the
+    #    bore floor); the bore slopes out, so everything exits the mouth into it -> sewer
+    tw = sheet.trenchWidth.Value
+    tdp = sheet.trenchDepth.Value
+    tm = sheet.trenchMargin.Value
+    ground = -(h / 2.0 + t) - sheet.sillHeight.Value          # pavement level (Z)
+    trench = doc.addObject("Part::Feature", "TrenchDrain")
+    trench.Shape = Part.makeBox(tw, w + 2 * tm, tdp,
+                                App.Vector(-tw, -(w + 2 * tm) / 2.0, ground - tdp))
+    parts["TrenchDrain"] = trench
 
-    # 3. sloped drop/catch tray below + in front of the mouth
-    td = sheet.dropTrayDepth.Value
-    tdr = sheet.dropTrayDrop.Value
-    floor_out = h / 2.0 + t
-    tray = doc.addObject("Part::Feature", "DropTray")
-    tray.Shape = Part.makeBox(td, w + 2 * t, tdr,
-                              App.Vector(-td, -(w + 2 * t) / 2.0, -(floor_out + tdr)))
-    parts["DropTray"] = tray
-
-    # 4. floor drain port at the bore low point -> sewer
-    dd = sheet.drainPortDia.Value
-    drain = doc.addObject("Part::Feature", "FloorDrain")
-    drain.Shape = Part.makeCylinder(dd / 2.0, t + 60.0,
-                                    App.Vector(bl - 400.0, 0, -(h / 2.0) + 1.0),
-                                    App.Vector(0, 0, -1))
-    parts["FloorDrain"] = drain
-
-    # 5. back-of-house plant envelope wrapping the actuator zone (no added depth)
+    # 3. back-of-house plant envelope wrapping the actuator zone (no added depth)
     sp = sheet.servicePlantSize.Value
     plant = doc.addObject("Part::Feature", "ServicePlant")
     plant.Shape = Part.makeBox(gap + md, sp, sp, App.Vector(bl, -sp / 2.0, -sp / 2.0))
@@ -414,9 +403,11 @@ def main():
     print("--- ADR-0015 cleaning (space claim) ---")
     print(f"SprayRing: ring hugging the barrel, X={mbb.XMin:.0f}..{mbb.XMax:.0f}  "
           f"cavity intrusion={ring_in_cavity:.1f} mm^3 (want ~0: bore stays clear)")
-    for nm in ("MouthRinseBar", "DropTray", "FloorDrain", "ServicePlant"):
+    for nm in ("TrenchDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
-        print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZLength:.0f} mm")
+        print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")
+    print(f"TrenchDrain sits in front of the mouth (X<0) at pavement level, sill "
+          f"{sheet.sillHeight.Value:.0f} mm above ground -- flush, no street-face hardware")
     sp = sheet.servicePlantSize.Value
     print(f"back-of-house cross-section now ~{sp:.0f} mm sq (actuator magazine was "
           f"{sheet.magazineSize.Value:.0f}); install depth UNCHANGED at "

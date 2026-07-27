@@ -609,6 +609,9 @@ with a photometric spec.
 **Date:** 2026-07-27
 **Status:** Accepted (architecture + method); part selection, sizing, sewer-discharge
 compliance and freeze design TBD. Specifies the deferred component-tree item 6.
+**Revised by ADR-0016** — the exterior mouth rinse bar + drop tray (points 4 / 5a) and the
+internal FloorDrain are removed for vandal resistance; everything exits the mouth to a
+flush pavement trench drain instead.
 
 **Context.** Until now "cleaning" was only the piston's dry wiper sweep (ADR-0001):
 mechanically squeegee the bore and eject loose solids out the mouth. The real cleaning
@@ -721,6 +724,62 @@ its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + 
 
 ---
 
+## ADR-0016 — Cleaning stays off the public face; everything exits the mouth (revises ADR-0015)
+**Date:** 2026-07-27
+**Status:** Accepted. Revises ADR-0015 points 4 and 5a and its internal FloorDrain.
+
+**Context.** ADR-0015 put two cleaning parts on the STREET face — a mouth rinse bar and a
+drop tray under the opening. Both are exposed even when the cell is closed, so they are
+grab-able / smashable / trash-able: they violate design priority #1 (vandal resistance),
+the very reason the closed cell is otherwise just a flush, handleless, latched steel face.
+A tempting fix — capture the debris on the SERVICE side — was rejected because it breaks
+the machine's core invariant: the cell **pushes everything OUT the mouth and traps
+nothing; the service side is always sealed** (ADR-0001; the occupant is always mouth-side
+of the piston, ADR-0009). Debris cannot cross the piston seal into the sealed chamber.
+
+**Decision.** Keep the push-out invariant and take ALL cleaning hardware off the public face.
+1. **Everything exits the mouth.** Solids AND wash water leave via the mouth; the bore
+   floor **slopes toward the mouth** (no internal low-point drain to clog or trap). The
+   ADR-0015 internal FloorDrain is dropped.
+2. **A flush pavement trench drain, not an appendage.** A grated, load-rated channel set
+   into the PAVEMENT at the mouth base takes the ejected solids + runoff straight to sewer.
+   It is streetscape infrastructure — bolted, walk-on, flush — with the solids interceptor
+   serviced from **below / behind (a manhole)**, never from the street face. (CAD part
+   `TrenchDrain`.)
+3. **No mouth rinse bar, no hanging tray.** The interior `SprayRing` cleans the mouth /
+   sill / exterior face-edge during the crack-open purge; the runoff drains back out the
+   mouth into the trench. If a dedicated mouth rinse is later needed it is **flush jets
+   recessed in the sill frame**, not a protruding bar.
+4. **Closed = flush face only.** The public sees the hardened piston face; the sole other
+   street element is the bolted pavement grate.
+
+**Why.** Priority #1: nothing fragile or grab-able on the public face. The trench is
+infrastructure-grade (a city gutter / trench grate), effectively unvandalizable. It keeps
+the push-out / never-trap invariant and the sealed service side intact, and it is simpler
+(three cleaning parts, not five).
+
+**Rejected alternatives.**
+- **Service-side / internal debris capture:** violates the sealed-service, never-trap
+  invariant (ADR-0001 / 0009) — debris would have to cross the piston seal. Rejected.
+- **Hardened rinse bar / tray on the wall face:** still a street-face target; a flush
+  pavement drain is strictly better.
+
+**Accepted costs / to verify.**
+- Siting now needs a **plumbed pavement trench + sewer tie** at the mouth, a load-rated
+  walk-on grate, and freeze protection (trace-heat / self-drain).
+- The **solids interceptor** basket is a maintenance item, reached from below.
+- Confirm the bore-floor slope fully drains to the mouth and does not pool at the sill.
+- Biohazard runoff crosses the pavement only at the mouth base before dropping through the
+  grate — keep the trench hard against the mouth; confirm splash / hygiene.
+- **Revisits ADR-0013:** the "drop zone / collection tray" is now this trench drain; the
+  sitting-height sill (object-clearing) rationale still holds — items fall into the trench.
+
+**Follow-ups.** CAD: drop `MouthRinseBar` + `DropTray` + `FloorDrain`, add `TrenchDrain`,
+slope the bore to the mouth; re-export + update the anatomy diagram. SAFETY.md: note the
+pavement drain + slip / hygiene. Confirm grate load rating + trench sewer tie at siting.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -733,7 +792,7 @@ its own stroke as the motion — not a flooded CIP box. Sanitize is **thermal + 
    pressure-sensitive safety edge, external/operator e-stop + passive flush latch
    (NO interior release, ADR-0009), rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
-6. Cleaning subsystem: specified in ADR-0015 (motion-driven wash-in-transit +
-   thermal-chemical sanitize, plumbed) — in-bore spray ring (SprayRing), mouth rinse bar,
-   sloped tray + drain, heater/steam, disinfectant doser, dry-air; parts TBD in build_model.py.
+6. Cleaning subsystem: ADR-0015 + ADR-0016 (motion-driven wash-in-transit, thermal-chemical
+   sanitize, plumbed; everything exits the mouth to a flush pavement trench drain — no
+   street-face hardware) — SprayRing, TrenchDrain, ServicePlant; sizing TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.
