@@ -828,6 +828,42 @@ update the anatomy diagram. SAFETY.md: hot-water / chemical drain to sewer + tra
 
 ---
 
+## ADR-0018 — Two spray rings: front (past the closed piston) + a hidden service-side ring
+**Date:** 2026-07-27
+**Status:** Accepted. Resolves the ADR-0017 "nozzle placement" to-verify.
+
+**Context.** The wash must reach the surfaces the occupant touched — which end up in the
+SEALED CHAMBER behind the piston when the cell is CLOSED (X > ~300; the piston body is
+~300 mm wide). A single spray ring near the mouth (ADR-0015, at X=40–120) sits INSIDE that
+closed-piston zone, so it can only hit the piston's side, not the chamber.
+
+**Decision.** Two fixed spray rings, so the closed chamber is washed from both ends:
+1. **SprayRing (front)** moves to just PAST the closed piston (X = pistonLength + 40 ≈ 340).
+   Still near the mouth, but on the service side of the flush face, so it sprays the front
+   of the sealed chamber — and the piston face still sweeps past it in transit for a rinse.
+2. **ServiceSprayRing (deep)** sits BEHIND the deployed piston face (X = cavityLength + 60 ≈
+   2260), so it is NEVER in the occupant space — never seen or reached by the user. It
+   washes the deep end of the sealed chamber when the cell is closed.
+
+**Why.** One ring can't be both within reach of the mouth AND past the wide piston; the two
+requirements are ~2 m apart. Two rings, front + deep, cover the whole closed chamber, keep
+the deep ring permanently hidden from the occupant, and the front ring doubles as the
+in-transit face rinse.
+
+**Rejected alternatives.**
+- **Single mouth-side ring (ADR-0015):** buried in the closed piston; can't wash the chamber.
+- **Single deep ring only:** would miss the piston face / front region and the in-transit rinse.
+
+**Accepted costs / to verify.** Two nozzle manifolds + supply lines (more plumbing). The
+deep ring shares the bore cross-section with the deployed piston body — confirm clearance.
+Spray coverage/overlap along the 2.2 m chamber is still TBD (two stations may not be enough;
+the sump slope must carry the media from both).
+
+**Follow-ups.** CAD: SprayRing repositioned + ServiceSprayRing added (space claim);
+re-export + diagram updated.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -843,5 +879,5 @@ update the anatomy diagram. SAFETY.md: hot-water / chemical drain to sewer + tra
 6. Cleaning subsystem: ADR-0015 + 0016 + 0017 (motion-driven wash-in-transit, thermal-chemical
    sanitize, plumbed; solids exit the mouth to a flush pavement grate, wash media drains to an
    internal piston-hidden back sump — no street-face hardware) — SprayRing, TrenchDrain,
-   SumpDrain, ServicePlant; sizing TBD in build_model.py.
+   SumpDrain, ServicePlant + a deep hidden ServiceSprayRing (ADR-0018); sizing TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

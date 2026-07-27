@@ -54,9 +54,11 @@ PARAMS = [
     ("luminaireEndMargin", "150 mm",                     "strip setback from each cavity end along X"),
     ("luminaireLength", "=cavityLength - 2 * luminaireEndMargin", "lit length along X (derived)"),
     # --- ADR-0015 cleaning subsystem: SPACE CLAIM (representative, not selected) ---
-    ("sprayRingRadial",  "50 mm",  "in-bore spray-ring radial thickness, hugging the barrel [ADR-0015]"),
-    ("sprayRingDepth",   "80 mm",  "spray-ring extent along X (near the mouth)"),
-    ("sprayRingSetback", "40 mm",  "spray-ring setback from the mouth plane along X"),
+    ("sprayRingRadial",  "50 mm",  "spray-ring radial thickness, hugging the barrel [ADR-0015]"),
+    ("sprayRingDepth",   "80 mm",  "spray-ring extent along X"),
+    ("sprayRingSetback", "=pistonLength + 40 mm", "front ring: just PAST the closed piston so it sprays the sealed chamber [ADR-0018]"),
+    ("serviceRingSetback","60 mm", "service ring setback BEHIND the deployed piston face (X=cavityLength+this); never in the occupant space [ADR-0018]"),
+    ("serviceRingDepth", "80 mm",  "service spray-ring extent along X"),
     ("sillHeight",          "500 mm", "mouth sill height above the pavement [ADR-0013]"),
     ("trenchWidth",         "300 mm", "pavement trench-drain width along X, in front of the mouth [ADR-0016]"),
     ("trenchDepth",         "120 mm", "trench-drain channel depth Z"),
@@ -281,10 +283,12 @@ def build_cleaning(doc, sheet):
     the mouth to a flush pavement grate; the WASH MEDIA (hot water + detergent +
     disinfectant) drains INTERNALLY to a back sump -> sewer, so hot chemical water never
     sheets across the street. No cleaning hardware on the public face (priority #1).
-      SprayRing     a ring hugging the barrel OUTSIDE near the mouth; flush nozzle tips
-                    (not modeled) reach through the wall into the bore, so the piston
-                    sweeps its face + walls past the spray -- no fixed obstruction in the
-                    keep-out cavity (detergent -> 82-90 C hot water/steam -> disinfectant).
+      SprayRing     front nozzle ring hugging the barrel just PAST the closed piston, so it
+                    sprays the sealed chamber's front + rinses the piston face in transit
+                    (detergent -> 82-90 C hot water/steam -> disinfectant).
+      ServiceSprayRing  a second ring DEEP on the service side, behind the deployed piston
+                    face, so it is NEVER in the occupant space; washes the sealed chamber's
+                    far end when the cell is closed [ADR-0018].
       TrenchDrain   a flush, grated channel set into the PAVEMENT at the mouth base for
                     the ejected SOLIDS + rain -> sewer. Streetscape infrastructure, not an
                     appendage -- bolted, walk-on, serviced from below.
@@ -314,6 +318,17 @@ def build_cleaning(doc, sheet):
     ring = doc.addObject("Part::Feature", "SprayRing")
     ring.Shape = outer.cut(inner)
     parts["SprayRing"] = ring
+
+    # 1b. service-side spray ring: DEEP, behind the deployed piston face, so it is never
+    #     in the occupant space; washes the sealed chamber's far end when closed [ADR-0018]
+    srs = sheet.serviceRingSetback.Value
+    srd = sheet.serviceRingDepth.Value
+    srx = sheet.cavityLength.Value + srs
+    souter = rounded_box_shape(w + 2 * t + 2 * mr, h + 2 * t + 2 * mr, srd, r + t + mr, x0=srx)
+    sinner = rounded_box_shape(w + 2 * t, h + 2 * t, srd + 2.0, r + t, x0=srx - 1.0)
+    sring = doc.addObject("Part::Feature", "ServiceSprayRing")
+    sring.Shape = souter.cut(sinner)
+    parts["ServiceSprayRing"] = sring
 
     # 2. flush pavement trench drain at the mouth base (ground = sill height below the
     #    bore floor) -- catches the SOLIDS the closing sweep ejects, + rain -> sewer
@@ -418,11 +433,14 @@ def main():
 
     # ADR-0015 cleaning subsystem (space claim) --------------------------------
     ring = clean["SprayRing"]
-    ring_in_cavity = ref_body.Shape.common(ring.Shape).Volume
+    sring = clean["ServiceSprayRing"]
     mbb = ring.Shape.BoundBox
-    print("--- ADR-0015 cleaning (space claim) ---")
-    print(f"SprayRing: ring hugging the barrel, X={mbb.XMin:.0f}..{mbb.XMax:.0f}  "
-          f"cavity intrusion={ring_in_cavity:.1f} mm^3 (want ~0: bore stays clear)")
+    smbb = sring.Shape.BoundBox
+    print("--- ADR-0015/0018 cleaning (space claim) ---")
+    print(f"SprayRing (front): X={mbb.XMin:.0f}..{mbb.XMax:.0f} (past closed piston "
+          f"{sheet.pistonLength.Value:.0f})  cavity intrusion={ref_body.Shape.common(ring.Shape).Volume:.1f} (want ~0)")
+    print(f"ServiceSprayRing (deep): X={smbb.XMin:.0f}..{smbb.XMax:.0f} (behind deployed face "
+          f"{sheet.cavityLength.Value:.0f})  cavity intrusion={ref_body.Shape.common(sring.Shape).Volume:.1f} (want ~0: never in cavity)")
     for nm in ("TrenchDrain", "SumpDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
         print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")
