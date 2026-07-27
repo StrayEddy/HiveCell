@@ -1,0 +1,256 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1010" viewBox="0 0 1400 1010">
+  <style>
+    text{font-family:'DejaVu Sans','Helvetica',Arial,sans-serif}
+    .title{font-size:23px;font-weight:bold;fill:#161a20}
+    .sub{font-size:13px;fill:#5a6270}
+    .lbl{font-size:13px;fill:#20242b}
+    .small{font-size:11px;fill:#3a4049}
+    .dim{font-size:11px;fill:#7a818c}
+    .grphdr{font-size:13.5px;font-weight:bold;fill:#161a20}
+    .fnname{font-size:12.5px;font-weight:bold;fill:#161a20}
+    .fntext{font-size:12px;fill:#3a4049}
+    .wall{fill:#c9ccd1;stroke:#5f646d;stroke-width:1.5}
+    .bore{fill:#eaf4fb}
+    .void{fill:#dfe3e8}
+    .piston{fill:#93a6c1;stroke:#39465e;stroke-width:1.6}
+    .seal{fill:#e0572f}
+    .lum{fill:#ffce84;stroke:#d9a24e;stroke-width:.8}
+    .tray{fill:#dbe3ea;stroke:#5f646d;stroke-width:1.3}
+    .plant{fill:#f4eee2;stroke:#a98c5f;stroke-width:1.3}
+    .env{fill:none;stroke:#a98c5f;stroke-width:1.5;stroke-dasharray:7 5}
+    .mag{fill:#d8cdb6;stroke:#8a7a55;stroke-width:1.4}
+    .body{fill:#b7bec8}
+    .ground{stroke:#8a6d3b;stroke-width:2.5}
+    .leader{stroke:#8b929c;stroke-width:1}
+    .water{stroke:#2f8fd6;stroke-width:2;fill:none}
+    .waterfill{fill:#bfe0f5}
+    .axis{stroke:#39465e;stroke-width:1.5}
+    .cut{stroke:#39465e;stroke-width:1.2;stroke-dasharray:5 4}
+  </style>
+
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#39465e"/>
+    </marker>
+    <marker id="spray" markerWidth="8" markerHeight="8" refX="6" refY="2.5" orient="auto">
+      <path d="M0,0 L6,2.5 L0,5 Z" fill="#2f8fd6"/>
+    </marker>
+    <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="7" height="7" fill="#93a6c1"/>
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#5c6e8c" stroke-width="1.1"/>
+    </pattern>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1010" fill="#ffffff"/>
+
+  <!-- ===================== HEADER ===================== -->
+  <text x="40" y="40" class="title">HiveCell — anatomy of one cell</text>
+  <text x="40" y="61" class="sub">Longitudinal section (schematic, not to scale). One cell = a rounded-rectangular capsule bored into a wall, with a single piston that slides along it.</text>
+  <text x="40" y="78" class="sub">Piston shown DEPLOYED (cell open, in use). To close, the piston travels toward the street until its own face is the flush public wall.</text>
+
+  <!-- travel-axis arrow -->
+  <line x1="235" y1="104" x2="1150" y2="104" class="axis" marker-end="url(#arr)"/>
+  <line x1="235" y1="104" x2="200" y2="104" class="axis"/>
+  <text x="690" y="98" class="small" text-anchor="middle">+X  →  piston travel: deployed (open) ⟶ closed (flush)</text>
+
+  <!-- ===================== SIDE SECTION ===================== -->
+  <!-- ground + orientation -->
+  <line x1="95" y1="432" x2="1250" y2="432" class="ground"/>
+  <text x="120" y="452" class="small" fill="#8a6d3b">◀ PUBLIC / STREET</text>
+  <text x="1140" y="452" class="small" fill="#8a6d3b" text-anchor="end">SERVICE / BACK-OF-HOUSE ▶</text>
+
+  <!-- barrel walls (CapsuleShell): top + bottom bars -->
+  <rect x="210" y="166" width="792" height="14" class="wall"/>
+  <rect x="210" y="372" width="792" height="14" class="wall"/>
+  <!-- occupant cavity (open bore) -->
+  <rect x="210" y="180" width="690" height="192" class="bore"/>
+  <!-- sealed service void behind piston -->
+  <rect x="985" y="180" width="17" height="192" class="void"/>
+
+  <!-- luminaire (flush crown strip) -->
+  <rect x="258" y="180" width="602" height="7" class="lum"/>
+
+  <!-- occupant silhouette (head toward the piston = backrest) -->
+  <g class="body">
+    <circle cx="815" cy="352" r="14"/>
+    <rect x="360" y="352" width="450" height="16" rx="8"/>
+    <rect x="470" y="338" width="90" height="16" rx="8"/>
+  </g>
+
+  <!-- piston (the one moving part) -->
+  <rect x="900" y="180" width="85" height="192" fill="url(#hatch)" stroke="#39465e" stroke-width="1.6"/>
+  <!-- safety edge on the leading face -->
+  <rect x="896" y="180" width="5" height="192" class="seal" opacity="0.9"/>
+  <!-- wiper seal lips (front + rear, top + bottom) -->
+  <rect x="900" y="176" width="10" height="6" class="seal"/>
+  <rect x="900" y="370" width="10" height="6" class="seal"/>
+  <rect x="975" y="176" width="10" height="6" class="seal"/>
+  <rect x="975" y="370" width="10" height="6" class="seal"/>
+
+  <!-- occupancy sensor icon (radar arcs in crown) -->
+  <g stroke="#2b6f4e" fill="none" stroke-width="1.4">
+    <path d="M552,190 a10,10 0 0 1 20,0"/>
+    <path d="M548,190 a14,14 0 0 1 28,0"/>
+  </g>
+
+  <!-- ===== cleaning subsystem ===== -->
+  <!-- wash manifold: ring hugging the barrel near the mouth, nozzles into the bore -->
+  <rect x="226" y="160" width="20" height="20" class="plant"/>
+  <rect x="226" y="372" width="20" height="20" class="plant"/>
+  <line x1="248" y1="188" x2="266" y2="196" class="water" marker-end="url(#spray)"/>
+  <line x1="248" y1="364" x2="266" y2="356" class="water" marker-end="url(#spray)"/>
+  <line x1="236" y1="160" x2="236" y2="150" class="water"/>
+  <line x1="236" y1="392" x2="236" y2="404" class="water"/>
+
+  <!-- mouth rinse bar at the top lip -->
+  <rect x="190" y="150" width="20" height="12" class="plant"/>
+  <line x1="196" y1="162" x2="188" y2="176" class="water" marker-end="url(#spray)"/>
+  <line x1="205" y1="162" x2="205" y2="176" class="water" marker-end="url(#spray)"/>
+
+  <!-- mouth sill lip -->
+  <rect x="200" y="372" width="12" height="20" class="wall"/>
+
+  <!-- drop tray (sloped) below + in front of the mouth -> sewer -->
+  <path d="M120,392 L212,392 L212,410 L120,420 Z" class="tray"/>
+  <path d="M120,420 L120,432 L108,432 L108,392 L120,392 Z" class="tray"/>
+  <line x1="150" y1="404" x2="120" y2="410" class="water"/>
+
+  <!-- floor drain at the bore low point -> sewer -->
+  <path d="M826,386 L858,386 L842,402 Z" class="tray"/>
+  <rect x="836" y="400" width="12" height="30" class="tray"/>
+  <line x1="842" y1="392" x2="842" y2="428" class="water"/>
+
+  <!-- ===== drive / back-of-house ===== -->
+  <!-- chain column (variable-length rigid chain) -->
+  <rect x="985" y="270" width="80" height="14" class="mag"/>
+  <!-- return spring coil around the column (SF4) -->
+  <path d="M988,262 l8,-8 l8,16 l8,-16 l8,16 l8,-16 l8,16 l8,-16 l8,16 l7,-8" fill="none" stroke="#6a7a55" stroke-width="1.6"/>
+  <!-- chain magazine (coils the chain flat) -->
+  <rect x="1065" y="214" width="86" height="128" class="mag"/>
+  <path d="M1108,278 m0,-30 a30,30 0 1 1 -0.1,0 M1108,278 m0,-18 a18,18 0 1 1 -0.1,0 M1108,278 m0,-7 a7,7 0 1 1 -0.1,0"
+        fill="none" stroke="#8a7a55" stroke-width="1.3"/>
+
+  <!-- service plant envelope wrapping the actuator zone -->
+  <rect x="985" y="196" width="240" height="212" rx="8" class="env"/>
+  <rect x="1160" y="212" width="56" height="30" class="plant"/><text x="1188" y="231" class="small" text-anchor="middle">heat/</text><text x="1188" y="242" class="small" text-anchor="middle">steam</text>
+  <rect x="1160" y="252" width="56" height="30" class="plant"/><text x="1188" y="268" class="small" text-anchor="middle">disinf.</text><text x="1188" y="279" class="small" text-anchor="middle">tank</text>
+  <rect x="1160" y="300" width="56" height="28" class="plant"/><text x="1188" y="318" class="small" text-anchor="middle">blower</text>
+  <rect x="1160" y="338" width="56" height="28" class="plant"/><text x="1188" y="356" class="small" text-anchor="middle">pump</text>
+
+  <!-- A-A cut line on the section -->
+  <line x1="640" y1="150" x2="640" y2="404" class="cut"/>
+  <text x="640" y="145" class="small" text-anchor="middle" fill="#39465e">A</text>
+  <text x="640" y="418" class="small" text-anchor="middle" fill="#39465e">A</text>
+
+  <!-- ===================== CALLOUT NUMBERS ===================== -->
+  <g font-size="12.5" font-weight="bold">
+    <!-- helper: circle + white number -->
+    <g><circle cx="470" cy="173" r="11" fill="#2b3a55"/><text x="470" y="177" fill="#fff" text-anchor="middle">1</text></g>
+    <g><circle cx="942" cy="300" r="11" fill="#2b3a55"/><text x="942" y="304" fill="#fff" text-anchor="middle">2</text></g>
+    <g><circle cx="900" cy="404" r="11" fill="#2b3a55"/><text x="900" y="408" fill="#fff" text-anchor="middle">3</text><line x1="900" y1="393" x2="900" y2="378" class="leader"/></g>
+    <g><circle cx="1108" cy="200" r="11" fill="#2b3a55"/><text x="1108" y="204" fill="#fff" text-anchor="middle">4</text></g>
+    <g><circle cx="1025" cy="246" r="11" fill="#2b3a55"/><text x="1025" y="250" fill="#fff" text-anchor="middle">5</text><line x1="1025" y1="257" x2="1025" y2="266" class="leader"/></g>
+    <g><circle cx="760" cy="172" r="11" fill="#2b3a55"/><text x="760" y="176" fill="#fff" text-anchor="middle">6</text><line x1="760" y1="183" x2="760" y2="184" class="leader"/></g>
+    <g><circle cx="592" cy="200" r="11" fill="#2b3a55"/><text x="592" y="204" fill="#fff" text-anchor="middle">7</text></g>
+    <g><circle cx="878" cy="168" r="11" fill="#2b3a55"/><text x="878" y="172" fill="#fff" text-anchor="middle">8</text><line x1="889" y1="173" x2="898" y2="200" class="leader"/></g>
+    <g><circle cx="206" cy="410" r="11" fill="#2b3a55"/><text x="206" y="414" fill="#fff" text-anchor="middle">9</text></g>
+    <g><circle cx="270" cy="148" r="11" fill="#2b3a55"/><text x="270" y="152" fill="#fff" text-anchor="middle">10</text><line x1="259" y1="152" x2="242" y2="162" class="leader"/></g>
+    <g><circle cx="176" cy="146" r="11" fill="#2b3a55"/><text x="176" y="150" fill="#fff" text-anchor="middle">11</text><line x1="187" y1="150" x2="192" y2="153" class="leader"/></g>
+    <g><circle cx="132" cy="444" r="11" fill="#2b3a55"/><text x="132" y="448" fill="#fff" text-anchor="middle">12</text><line x1="132" y1="433" x2="130" y2="418" class="leader"/></g>
+    <g><circle cx="878" cy="418" r="11" fill="#2b3a55"/><text x="878" y="422" fill="#fff" text-anchor="middle">13</text><line x1="867" y1="416" x2="848" y2="404" class="leader"/></g>
+    <g><circle cx="1000" cy="188" r="11" fill="#2b3a55"/><text x="1000" y="192" fill="#fff" text-anchor="middle">14</text></g>
+  </g>
+
+  <!-- ===================== A-A CROSS SECTION INSET ===================== -->
+  <g transform="translate(1258,150)">
+    <text x="66" y="-12" class="small" text-anchor="middle" fill="#39465e">A–A  (capsule cross-section)</text>
+    <rect x="0" y="0" width="132" height="150" rx="26" class="wall"/>
+    <rect x="9" y="9" width="114" height="132" rx="18" class="bore"/>
+    <rect x="34" y="9" width="64" height="6" class="lum"/>
+    <line x1="18" y1="132" x2="114" y2="132" stroke="#7a818c" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="66" y="128" class="dim" text-anchor="middle">flat floor</text>
+    <text x="66" y="170" class="dim" text-anchor="middle">width 1000 · height 1100</text>
+    <text x="66" y="184" class="dim" text-anchor="middle">corner R 125 (mm)</text>
+    <text x="66" y="24" class="dim" text-anchor="middle">crown light (6)</text>
+  </g>
+
+  <!-- key dimensions strip -->
+  <text x="40" y="474" class="dim">Key dims (mm): cavity length 2200 · width 1000 · height 1100 · wall 6 · piston length 300 · running clearance 3 (seals bridge it) · install depth ≈ 2860 (2.86 m) · mouth sill ≈ 500 above ground</text>
+
+  <!-- ===================== LEGEND ===================== -->
+  <line x1="40" y1="492" x2="1360" y2="492" stroke="#d7dbe1" stroke-width="1"/>
+
+  <!-- column 1 -->
+  <text x="40" y="516" class="grphdr">STRUCTURE &amp; MOTION</text>
+  <g transform="translate(40,530)">
+    <text x="0" y="16" class="fnname">1 · CapsuleShell (fixed barrel)</text>
+    <text x="0" y="32" class="fntext">The stationary sleeve. The occupant lies inside it; the piston slides</text>
+    <text x="0" y="46" class="fntext">through it. Open at both ends (street opening + service side).</text>
+
+    <text x="0" y="70" class="fnname">2 · Piston  — the ONE moving part</text>
+    <text x="0" y="86" class="fntext">Its flat face is the occupant's backrest when open, and becomes the</text>
+    <text x="0" y="100" class="fntext">flush public wall when closed. No separate door. (ADR-0001)</text>
+
+    <text x="0" y="124" class="fnname">3 · WiperSeals  (safety fn SF3)</text>
+    <text x="0" y="140" class="fntext">Compliant lip rings on the piston. Fill the 3 mm gap so there is no</text>
+    <text x="0" y="154" class="fntext">open shear line, and scrape the bore clean each pass. (ADR-0011)</text>
+
+    <text x="0" y="178" class="fnname">4 · Chain drive: Column + Magazine</text>
+    <text x="0" y="194" class="fntext">Pushes/pulls the piston. The chain coils flat into the magazine so the</text>
+    <text x="0" y="208" class="fntext">unit stays ~2.9 m deep, not ~5 m. (ADR-0008 / 0010)</text>
+
+    <text x="0" y="232" class="fnname">5 · Return spring + flush latch  (SF4)</text>
+    <text x="0" y="248" class="fntext">Fail-open: on power loss the spring drives the cell OPEN so no one is</text>
+    <text x="0" y="262" class="fntext">pinned; a passive latch holds it shut without power. (ADR-0009)</text>
+  </g>
+
+  <!-- column 2 -->
+  <text x="490" y="516" class="grphdr">LIGHT · SENSING · OPENING</text>
+  <g transform="translate(490,530)">
+    <text x="0" y="16" class="fnname">6 · Luminaire  (ADR-0014)</text>
+    <text x="0" y="32" class="fntext">Warm, dim, flicker-free strip flush in the crown. Orientation light,</text>
+    <text x="0" y="46" class="fntext">sleep-safe night-glow, and status colour. Cleaned by the top wiper.</text>
+
+    <text x="0" y="70" class="fnname">7 · Occupancy sensors  (SF1, ADR-0012)</text>
+    <text x="0" y="86" class="fntext">Diverse suite — radar vitals + thermal + CO₂ + load. The primary</text>
+    <text x="0" y="100" class="fntext">safeguard: the cell NEVER moves while anyone/anything is inside.</text>
+
+    <text x="0" y="124" class="fnname">8 · Safety edge  (SF2)</text>
+    <text x="0" y="140" class="fntext">Contact-force strip on the leading face. Stops and reverses the close</text>
+    <text x="0" y="154" class="fntext">on any touch — the backstop behind SF1.</text>
+
+    <text x="0" y="178" class="fnname">9 · Mouth sill  (~500 mm, ADR-0013)</text>
+    <text x="0" y="194" class="fntext">Sitting-height lip at the opening, so items swept out fall clear onto</text>
+    <text x="0" y="208" class="fntext">the tray instead of jamming the sill.</text>
+
+    <text x="0" y="238" class="fntext" fill="#7a818c">SF = a rated safety function; ADR = a logged design</text>
+    <text x="0" y="252" class="fntext" fill="#7a818c">decision in docs/DECISIONS.md.</text>
+  </g>
+
+  <!-- column 3 -->
+  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015)</text>
+  <g transform="translate(940,530)">
+    <text x="0" y="16" class="fnname">10 · WashManifold  ← the one you asked about</text>
+    <text x="0" y="32" class="fntext">A ring of spray nozzles around the bore near the mouth. ("Manifold"</text>
+    <text x="0" y="46" class="fntext">= the header pipe feeding all the nozzles.) The piston sweeps its face</text>
+    <text x="0" y="60" class="fntext">and the walls PAST it while it jets detergent → 82–90 °C hot water /</text>
+    <text x="0" y="74" class="fntext">steam → disinfectant. This is the main wash.</text>
+
+    <text x="0" y="98" class="fnname">11 · MouthRinseBar</text>
+    <text x="0" y="114" class="fntext">Nozzle bar at the top lip; washes the sill + the exterior face-edge</text>
+    <text x="0" y="128" class="fntext">during the crack-open purge.</text>
+
+    <text x="0" y="152" class="fnname">12 · DropTray</text>
+    <text x="0" y="168" class="fntext">Sloped catch basin below the mouth; ejected debris + runoff drain</text>
+    <text x="0" y="182" class="fntext">to sewer.</text>
+
+    <text x="0" y="206" class="fnname">13 · FloorDrain</text>
+    <text x="0" y="222" class="fntext">Port at the bore's low point; wash water + fluids drain to sewer.</text>
+
+    <text x="0" y="246" class="fnname">14 · ServicePlant</text>
+    <text x="0" y="262" class="fntext">Back-of-house box wrapping the drive: hot-water/steam generator,</text>
+    <text x="0" y="276" class="fntext">disinfectant reservoir + doser, dry-air blower, pump.</text>
+  </g>
+
+  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0015) for the reasoning behind each part.</text>
+</svg>
