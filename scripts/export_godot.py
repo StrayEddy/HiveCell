@@ -20,7 +20,8 @@ DOC = "/home/eddy/Projects/HiveCell/cad/HiveCell.FCStd"
 OUTDIR = "/home/eddy/Projects/HiveCell/godot/models"
 PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine",
          # ADR-0015 cleaning subsystem (fixed space-claim parts)
-         "SprayRing", "ServiceSprayRing", "ServiceSqueegee", "TrenchDrain", "SumpDrain", "ServicePlant"]
+         "SprayRing", "ServiceSprayRing", "ServiceSqueegee", "SqueegeeDrive",
+         "TrenchDrain", "SumpDrain", "ServicePlant"]
 # ChainColumn is drawn procedurally (variable length is physical for a chain)
 
 os.makedirs(OUTDIR, exist_ok=True)

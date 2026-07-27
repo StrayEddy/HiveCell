@@ -153,6 +153,11 @@
   <rect x="1160" y="300" width="56" height="28" class="plant"/><text x="1188" y="318" class="small" text-anchor="middle">blower</text>
   <rect x="1160" y="338" width="56" height="28" class="plant"/><text x="1188" y="356" class="small" text-anchor="middle">pump</text>
 
+  <!-- SqueegeeDrive: the squeegee's own modular rigid-chain, nested beside the actuator (ADR-0020) -->
+  <rect x="996" y="352" width="94" height="42" class="mag"/>
+  <text x="1043" y="377" class="small" text-anchor="middle" fill="#3a2f18">sq. drive</text>
+  <g><circle cx="1043" cy="416" r="11" fill="#2b3a55"/><text x="1043" y="420" fill="#fff" text-anchor="middle">16</text><line x1="1043" y1="405" x2="1043" y2="394" class="leader"/></g>
+
   <!-- A-A cut line on the section -->
   <line x1="640" y1="150" x2="640" y2="404" class="cut"/>
   <text x="640" y="145" class="small" text-anchor="middle" fill="#39465e">A</text>
@@ -245,7 +250,7 @@
   </g>
 
   <!-- column 3 -->
-  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0019)</text>
+  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0020)</text>
   <g transform="translate(940,530)">
     <text x="0" y="14" class="fnname">10 · SprayRing (front)</text>
     <text x="0" y="29" class="fntext">Nozzle ring just PAST the closed piston — sprays the sealed chamber's</text>
@@ -267,13 +272,17 @@
     <text x="0" y="229" class="fntext">Back-of-house box: hot-water/steam gen, disinfectant + doser, dry-air</text>
     <text x="0" y="242" class="fntext">blower, pump.</text>
 
-    <text x="0" y="264" class="fnname">15 · ServiceSqueegee (traveling wiper)</text>
-    <text x="0" y="278" class="fntext">Runs the full sealed chamber while the piston is parked flush — a car</text>
-    <text x="0" y="290" class="fntext">wash over the stopped piston; scrubs + drives media to the sump. Hidden.</text>
+    <text x="0" y="262" class="fnname">15 · ServiceSqueegee (traveling wiper)</text>
+    <text x="0" y="276" class="fntext">Runs the full sealed chamber while the piston is parked flush — a car</text>
+    <text x="0" y="288" class="fntext">wash over the stopped piston; scrubs + drives media to the sump. Hidden.</text>
 
-    <text x="0" y="314" class="fntext" fill="#7a818c">ADR-0015–0019: nothing on the public face; two rings + a traveling</text>
-    <text x="0" y="328" class="fntext" fill="#7a818c">squeegee wash the sealed chamber; media to the hidden sump.</text>
+    <text x="0" y="310" class="fnname">16 · SqueegeeDrive</text>
+    <text x="0" y="324" class="fntext">The squeegee's OWN compact rigid-chain — a modular, bench-testable,</text>
+    <text x="0" y="336" class="fntext">swappable unit nested beside the piston's actuator. No added depth.</text>
+
+    <text x="0" y="360" class="fntext" fill="#7a818c">ADR-0015–0020: nothing on the public face; two rings + a traveling</text>
+    <text x="0" y="374" class="fntext" fill="#7a818c">squeegee (its own drive) wash the sealed chamber; media to the hidden sump.</text>
   </g>
 
-  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0019) for the reasoning behind each part.</text>
+  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0020) for the reasoning behind each part.</text>
 </svg>

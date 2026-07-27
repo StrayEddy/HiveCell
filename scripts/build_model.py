@@ -349,6 +349,17 @@ def build_cleaning(doc, sheet):
     squeegee.Shape = qouter.cut(qinner)
     parts["ServiceSqueegee"] = squeegee
 
+    # 1d. dedicated squeegee drive (ADR-0020): the squeegee's OWN compact rigid-chain, a
+    #     modular unit that nests in the back-of-house BESIDE the piston's actuator (no added
+    #     depth) so it can be bench-tested + swapped independently. Pushes the squeegee's back
+    #     via a yoke (offset-to-central coupling TBD). Fixed, like the piston magazine.
+    ms = sheet.magazineSize.Value
+    sdw, sdh = 260.0, 520.0                                   # drive cross-section Y, Z
+    drive = doc.addObject("Part::Feature", "SqueegeeDrive")
+    drive.Shape = Part.makeBox(md, sdw, sdh,
+                               App.Vector(bl + gap, ms / 2.0 + 40.0, -sdh / 2.0))
+    parts["SqueegeeDrive"] = drive
+
     # 2. flush pavement trench drain at the mouth base (ground = sill height below the
     #    bore floor) -- catches the SOLIDS the closing sweep ejects, + rain -> sewer
     tw = sheet.trenchWidth.Value
@@ -463,6 +474,9 @@ def main():
     qbb = clean["ServiceSqueegee"].Shape.BoundBox
     print(f"ServiceSqueegee (traveling wiper): stows X={qbb.XMin:.0f}..{qbb.XMax:.0f} behind the deployed "
           f"piston; travels the sealed chamber when the piston is parked flush")
+    dbb = clean["SqueegeeDrive"].Shape.BoundBox
+    print(f"SqueegeeDrive (modular, swappable): X={dbb.XMin:.0f}..{dbb.XMax:.0f} Y={dbb.YMin:.0f}..{dbb.YMax:.0f} "
+          f"-- own rigid-chain, nests beside the piston actuator (install depth unchanged)")
     for nm in ("TrenchDrain", "SumpDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
         print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")

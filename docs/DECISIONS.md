@@ -916,6 +916,45 @@ Twin: a new mover (added to `moving_parts`) — animate its traverse. Re-export 
 
 ---
 
+## ADR-0020 — Squeegee drive: a dedicated, swappable rigid-chain unit
+**Date:** 2026-07-27
+**Status:** Accepted (drive choice + space claim). Chain sizing, the offset→central coupling,
+and the motor are TBD.
+
+**Context.** ADR-0019's `ServiceSqueegee` needs its own drive. The syringe topology forbids
+external rails / wall slots (ADR-0007), so the drive must be central/coaxial like the piston's.
+Options surveyed: (1) water-driven "cleaning pig" + tether (reuses the wash pump, no motor);
+(2) shared piston actuator + a drive-transfer clutch (one motor, but a fragile clutch);
+(3) a dedicated compact rigid-chain (a second zip-chain, its own motor); (4) a central
+lead/ball screw (whip + depth + wash-zone corrosion).
+
+**Decision.** Option 3 — give the squeegee its OWN compact rigid-chain drive (`SqueegeeDrive`),
+a modular unit that nests in the back-of-house BESIDE the piston's actuator (no added install
+depth) and pushes the squeegee's back.
+
+**Why.** Chosen for SERVICEABILITY / reliability (priorities #3 / #4 / #8): an independent module
+that can be bench-tested and swapped on its own, decoupled from the piston drive — no shared
+clutch to fail (rules out #2), no dependence on wash-pump pressure or a mostly-sealing disc
+(rules out #1's soft force/positioning), no long whippy screw in the wash zone (rules out #4).
+Rigid-chain is proven (ADR-0008) and the squeegee's load is light (one low-friction wiper), so
+the unit is small.
+
+**Rejected alternatives.** Water pig (#1): elegant and motorless, but soft force/positioning and
+the disc must mostly-seal — revisit if the chain proves overkill. Shared clutch (#2): a transfer
+dog is a reliability risk for an unattended unit. Lead screw (#4): whip + retract depth (the
+problem ADR-0007 avoided) + wash-zone corrosion.
+
+**Accepted costs / to verify.** A second motor + controller (against simplicity #7, bought for
+serviceability). **Coupling:** the drive nests offset in +Y, so a yoke/arm must transfer its push
+to the central squeegee ring **without a wall slot** — confirm the routing. Chain/motor sizing vs
+the (light) wiper drag. The back-of-house cross-section grows to house it (depth unchanged).
+An independent self-test + quick-swap mounting are needed to actually realise the serviceability win.
+
+**Follow-ups.** CAD: `SqueegeeDrive` space claim added beside the actuator; coupling + chain
+column TBD. Twin: drive the squeegee's traverse from it. Re-export + diagram.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -931,5 +970,6 @@ Twin: a new mover (added to `moving_parts`) — animate its traverse. Re-export 
 6. Cleaning subsystem: ADR-0015–0019 (spray-and-squeegee wash, thermal-chemical sanitize, plumbed;
    solids out the mouth to a flush pavement grate, wash media to an internal piston-hidden sump —
    no street-face hardware) — SprayRing + deep ServiceSprayRing, a traveling ServiceSqueegee,
-   SumpDrain, TrenchDrain, ServicePlant; drive + hydraulics TBD in build_model.py.
+   SumpDrain, TrenchDrain, ServicePlant, + the squeegee's own SqueegeeDrive (ADR-0020);
+   wash hydraulics + drive coupling TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.
