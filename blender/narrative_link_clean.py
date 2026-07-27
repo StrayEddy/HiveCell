@@ -5,8 +5,9 @@ open/close + cleaning cycle is authored once in build_scene.py and baked into
 hivecell.blend as the HC_*_Clean actions. narrative.blend is the film; it does NOT
 re-key the mechanism. This script HARD-LINKS those actions (read-only) and plays
 them on the S3 hero cell via NLA strips placed at the S3 cut (frame 553), while the
-per-shot LOOK (x-ray shell, killing the neon, warm interior, spray glow) stays local
-in narrative -- motion is canonical, shading is per-shot (like a real anim/lighting
+per-shot LOOK (x-ray shell, killing the neon, a STRONG WHITE ceiling luminaire as the
+sole cleaning light, all mechanics non-emissive, full-length side-cutaway camera) stays
+local in narrative -- motion is canonical, shading is per-shot (like a real anim/lighting
 split).
 
 Dependency: hivecell.blend must be rebuilt (scripts/export_blender.py +
@@ -198,10 +199,12 @@ def kill_neon():
             fc.update()
 
 
-def warm_luminaire():
-    """The ADR-0014 crown luminaire is the interior source during the wash: it
-    warms up as the cell closes, rakes the chamber while the squeegee works, then
-    eases as the cell reopens. Preserve the S1/S2 level before the cut."""
+def white_luminaire():
+    """The ADR-0014 crown luminaire is the SOLE cleaning light: a strong white
+    service light that comes up hard as the cell closes, floods the chamber while
+    the squeegee works, then eases as the cell reopens. All mechanics are lit only
+    by this -- nothing self-illuminates (Eddy's call). The emitting strip is small
+    vs. the bore, so the strength is high. Preserve the S1/S2 level before the cut."""
     m = bpy.data.materials.get("cell_Luminaire")
     nt = m.node_tree
     out = next((n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"), None)
@@ -211,26 +214,41 @@ def warm_luminaire():
     if src is None:
         src = nt.nodes.get("Emission") or nt.nodes["Principled BSDF"]
     skey = "Strength" if src.type == "EMISSION" else "Emission Strength"
-    base = src.inputs[skey].default_value or 3.0
-    if src.type == "EMISSION":
-        src.inputs["Color"].default_value = (1.0, 0.66, 0.32, 1.0)   # warm amber
+    ckey = "Color" if src.type == "EMISSION" else "Emission Color"
+    src.inputs[ckey].default_value = (1.0, 1.0, 1.0, 1.0)   # strong white
+    if nt.animation_data and nt.animation_data.action:
+        for fc in fcurves(nt.animation_data.action):
+            if skey in fc.data_path or "inputs[1]" in fc.data_path:
+                for i in range(len(fc.keyframe_points) - 1, -1, -1):
+                    fc.keyframe_points.remove(fc.keyframe_points[i])
+                fc.update()
     key_scalar(nt, src.name, skey, [
-        (CUT - 14, base),            # preserve S1/S2 level up to the cut
-        (CUT + 12, base * 3.0 + 6),  # warm up as the wash begins
-        (CUT + 105, base * 3.0 + 6), # hold through the squeegee passes
-        (CUT + 140, base + 2),       # ease as the cell reopens
-        (END, base + 2),
+        (CUT - 7, 15),     # preserve the low S1/S2 level up to the cut
+        (CUT + 3, 140),    # hard on as the wash begins
+        (650, 140),        # flood through the squeegee passes
+        (700, 70),         # ease as the cell reopens
+        (END, 55),
     ])
 
 
-def spray_fx(rings):
-    """Cheap watery shimmer on the two spray rings during the wash window."""
-    for o in rings:
-        m = o.data.materials[0]
-        nt = m.node_tree
-        key_scalar(nt, "Principled BSDF", "Emission Strength", [
-            (CUT, 0.0), (CUT + 8, 7.0), (CUT + 32, 2.0), (CUT + 57, 7.0),
-            (CUT + 82, 2.0), (CUT + 100, 0.0), (END, 0.0)])
+def reframe_camera():
+    """S3 is a full-length x-ray SIDE CUTAWAY so the wash reads: pull the hero
+    camera back to see mouth->service end (it auto-aims at the Focus at the bore
+    centre). Hard cut from S2 (pin frame 552, CONSTANT), then a gentle push."""
+    cam = bpy.context.scene.camera
+    act = cam.animation_data.action
+    loc = {fc.array_index: fc for fc in fcurves(act) if fc.data_path == "location"}
+    S3 = [(CUT, (0.5, -6.0, 0.55)), (END, (0.5, -5.55, 0.68))]   # pull back + push/rise
+    for i, fc in loc.items():
+        v552 = fc.evaluate(552)
+        kps = fc.keyframe_points
+        for j in range(len(kps) - 1, -1, -1):
+            if kps[j].co.x >= CUT:
+                kps.remove(kps[j])
+        fc.keyframe_points.insert(552, v552).interpolation = "CONSTANT"
+        for f, p in S3:
+            fc.keyframe_points.insert(f, p[i]).interpolation = "BEZIER"
+        fc.update()
 
 
 def hold_xray():
@@ -255,9 +273,9 @@ if already_wired():
           "(restore blender/narrative_pre_s3rework.blend to redo).")
 else:
     acts = link_clean_actions()
-    mat_sq = mat_pbr("cell_Squeegee", (0.12, 0.13, 0.15), 0.4, 0.45)
-    mat_spray = mat_pbr("cell_Spray", (0.7, 0.85, 0.95), 0.0, 0.2,
-                        emit=(0.75, 0.9, 1.0), emit_str=0.0)
+    # all mechanics are non-emissive: bright metal that catches the white luminaire.
+    mat_sq = mat_pbr("cell_Squeegee", (0.62, 0.65, 0.70), 0.85, 0.18)
+    mat_spray = mat_pbr("cell_Spray", (0.35, 0.37, 0.40), 0.8, 0.35)
     sq = import_obj("ServiceSqueegee", mat_sq)
     sr_f = import_obj("SprayRing", mat_spray)
     sr_d = import_obj("ServiceSprayRing", mat_spray)
@@ -269,10 +287,11 @@ else:
     for o in (sq, sr_f, sr_d):
         key_hide(o)
 
-    # LOOK (per-shot, local)
+    # LOOK (per-shot, local): kill the neon, white ceiling light is the only source,
+    # full-length side cutaway so the wash reads, x-ray shell held transparent.
     kill_neon()
-    warm_luminaire()
-    spray_fx([sr_f, sr_d])
+    white_luminaire()
+    reframe_camera()
     hold_xray()
 
     bpy.context.scene.frame_set(CUT + 40)   # a wash frame, for the saved viewport
