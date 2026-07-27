@@ -62,6 +62,10 @@ var title_label: Label
 var status_label: Label
 var luminaire: MeshInstance3D         ## ADR-0014 interior light + status strip (crown)
 var luminaire_mat: StandardMaterial3D
+var squeegee: MeshInstance3D          ## ADR-0019 traveling wiper (the cleaning cycle)
+var spray_rings: Array[MeshInstance3D] = []
+var squeegee_x0 := 2.5                ## squeegee stow front (from the mesh), set on load
+var clean_t := 0.0                    ## cleaning-cycle timer
 
 var scenarios := [
 	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0,  "person": false, "intrude": false},
@@ -70,6 +74,7 @@ var scenarios := [
 	{"title": "4 · SOMEONE INSIDE — motion LOCKED",       "things": 0,  "person": true,  "intrude": false},
 	{"title": "5 · INTRUSION MID-SWEEP — stop & reverse", "things": 2,  "person": false, "intrude": true},
 	{"title": "6 · SENSOR BLIND — safety edge catches",   "things": 0,  "person": true,  "intrude": false, "sf1_blind": true},
+	{"title": "7 · CLEANING CYCLE — squeegee scrubs the sealed chamber", "things": 0, "person": false, "intrude": false, "clean": true},
 ]
 var scn := -1
 var scn_time := 0.0
@@ -214,6 +219,12 @@ func _build_world() -> void:
 		mi.name = part
 		mi.material_override = drain_col if part.ends_with("Drain") or part == "ServicePlant" else clean_col
 		add_child(mi)
+		if part == "ServiceSqueegee":
+			squeegee = mi
+			squeegee_x0 = mi.mesh.get_aabb().position.x        # front of the stowed wiper
+		elif part.ends_with("SprayRing"):
+			mi.material_override = clean_col.duplicate()       # own material so we can pulse it
+			spray_rings.append(mi)
 
 	# Ground: a large forgiving surface `sill_height` below the bore floor, so ejected
 	# items fall CLEAR of the mouth (the H4 siting rationale). Its top is at ground_y.
@@ -394,6 +405,7 @@ func _start_scenario(i: int) -> void:
 	saw_motion = false
 	intruded = false
 	sf2_tripped = false
+	clean_t = 0.0
 	_clear_scene_contents()
 
 	# Fresh interlock so each scenario starts deployed and empty of state.
@@ -427,6 +439,7 @@ func _start_scenario(i: int) -> void:
 		_spawn_person(Vector3(stroke * 0.5, floor_y + 0.28, 0.0))
 
 	_place_piston()
+	_place_squeegee(0.0)
 
 
 func _place_piston() -> void:
@@ -438,6 +451,49 @@ func _place_piston() -> void:
 func _piston_face_x() -> float:
 	# Front face of the piston plug (its natural front is at x = stroke).
 	return stroke - il.progress * stroke
+
+
+func _place_squeegee(trav: float) -> void:
+	# trav 0 = stowed behind the piston; 1 = advanced to the mouth end of the chamber.
+	if squeegee:
+		var travel: float = squeegee_x0 - (mouth_x + 0.35)
+		squeegee.position.x = -trav * travel
+
+
+func _pulse_spray(intensity: float) -> void:
+	for r in spray_rings:
+		var m := r.material_override as StandardMaterial3D
+		if m:
+			m.emission_enabled = intensity > 0.05
+			m.emission = Color(0.35, 0.75, 1.0) * clampf(intensity, 0.0, 1.0)
+
+
+# The cleaning cycle: piston closes to flush -> the service squeegee traverses the
+# sealed chamber (two out-and-back scrub passes) with the spray rings pulsing ->
+# piston reopens to a clean, ready pod. Scripted (the interlock only governs safety).
+func _run_cleaning(delta: float) -> void:
+	clean_t += delta
+	var t := clean_t
+	var t_close := 2.0
+	var t_wash := 6.0
+	var t_open := 2.0
+	if t < t_close:
+		il.progress = t / t_close                              # close to flush
+		_place_squeegee(0.0)
+		_pulse_spray(0.0)
+	elif t < t_close + t_wash:
+		il.progress = 1.0                                      # hold flush; chamber sealed
+		var ct := (t - t_close) / t_wash                       # 0..1 over the wash
+		_place_squeegee(0.5 - 0.5 * cos(ct * TAU * 2.0))       # two out-and-back passes
+		_pulse_spray(0.55 + 0.45 * sin(ct * TAU * 8.0))        # flickering spray
+	elif t < t_close + t_wash + t_open:
+		il.progress = 1.0 - (t - t_close - t_wash) / t_open    # reopen -> clean
+		_place_squeegee(0.0)
+		_pulse_spray(0.0)
+	else:
+		il.progress = 0.0
+		_place_squeegee(0.0)
+		_pulse_spray(0.0)
 
 
 ## Estimate the contact force the drive is meeting (N). The key discriminator is
@@ -474,6 +530,17 @@ func _scenario_done() -> bool:
 
 func _physics_process(delta: float) -> void:
 	scn_time += delta
+
+	# Cleaning-cycle scenario (ADR-0015..0020): scripted, not the safety interlock.
+	if scenarios[scn].get("clean", false):
+		_run_cleaning(delta)
+		_place_piston()
+		_update_chain()
+		_update_luminaire()
+		_update_hud()
+		if clean_t > 10.5 and scn_time > 1.0:
+			_start_scenario((scn + 1) % scenarios.size())
+		return
 
 	# Bonus scenario: someone reaches in once the sweep is well underway.
 	if scenarios[scn]["intrude"] and not intruded \
