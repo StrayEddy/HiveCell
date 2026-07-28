@@ -14,9 +14,11 @@ and the sterile white service luminaire eases out as dawn takes over. We stay on
 the ISOLATED hero cell (no environment un-dissolve) to match S3's treatment; the
 "pull back to the wall" bookend was the rejected option.
 
-LOOK only -- it does NOT touch motion or camera (those are Eddy's hand blocking).
-All ramps read the value S3 held at S3_END and ease FROM it, so re-running is
-idempotent-ish and the S2/S3 look before the cut is never disturbed.
+Mostly LOOK -- it does NOT touch motion. It DOES square up the S4 camera to
+dead-front & level (Eddy's call): the reopen is watched straight down the -X
+mouth normal, no 3/4 angle. All ramps read the value S3 held at S3_END and ease
+FROM it, so re-running is idempotent-ish and the S2/S3 look/camera before the
+cut are never disturbed.
 
 Run:  /usr/bin/blender --background blender/narrative.blend \
           --python blender/narrative_s4_reopen.py
@@ -219,6 +221,27 @@ def lift_exposure():
     print("  exposure %.2f -> %.2f" % (e0, EXPOSURE_DAWN))
 
 
+# --- 6. camera: square up to dead-front & level (down the -X mouth normal) -----
+def front_camera():
+    cam = bpy.context.scene.camera
+    if not cam or not cam.animation_data or not cam.animation_data.action:
+        print("  [skip] no camera action")
+        return
+    # Track-To @ Focus(1.15,0,0) handles the aim; zero the S4 Y (yaw) and Z
+    # (pitch) keys so the camera sits on the bore centreline -> pure +X, level.
+    n = 0
+    for fc in fcurves(cam.animation_data.action):
+        if fc.data_path == "location" and fc.array_index in (1, 2):
+            for kp in fc.keyframe_points:
+                if kp.co.x >= S4_A:
+                    kp.co.y = 0.0
+                    kp.handle_left.y = 0.0
+                    kp.handle_right.y = 0.0
+                    n += 1
+            fc.update()
+    print("  camera: dead-front & level (zeroed %d S4 Y/Z keys, f>=%d)" % (n, S4_A))
+
+
 # --- run ----------------------------------------------------------------------
 bpy.ops.wm.open_mainfile(filepath=NARR)
 print("S4 dawn look -> narrative.blend (f%d..%d):" % (S4_A, END))
@@ -227,6 +250,7 @@ ease_luminaire()
 warm_world()
 dawn_sun()
 lift_exposure()
+front_camera()
 bpy.context.scene.frame_set(DAWN)   # a dawn frame for the saved viewport
 bpy.ops.wm.save_as_mainfile(filepath=NARR)
 print("SAVED S4 dawn look.")
