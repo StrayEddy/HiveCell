@@ -103,6 +103,12 @@
   .blueprint img { width:100%; display:block; border-radius:4px; }
   .blueprint figcaption { color:#5a6270; font-size:.86rem; margin-top:12px; text-align:center; }
 
+  /* framed rendered still */
+  .shot { position:relative; max-width:760px; margin:0 auto; border-radius:14px; padding:2px;
+    background:linear-gradient(135deg, rgba(240,163,94,.4), rgba(63,185,80,.28)); }
+  .shot img { width:100%; display:block; border-radius:12px; background:#000; }
+  .shotcap { color:var(--muted); font-size:.86rem; text-align:center; margin:12px auto 26px; max-width:640px; }
+
   /* safety table */
   table { width:100%; border-collapse:collapse; font-size:.94rem; }
   th,td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
@@ -139,6 +145,7 @@
       <a href="#what">What</a>
       <a href="#anatomy">Anatomy</a>
       <a href="#safety">Safety</a>
+      <a href="#hygiene">Hygiene</a>
       <a href="#open">Open source</a>
       <a href="#help">Help</a>
       <a class="cta" href="https://github.com/StrayEddy/HiveCell">GitHub</a>
@@ -239,6 +246,27 @@
       </tbody>
     </table>
     <p style="margin-top:22px" class="note"><b>Honest status:</b> this is <b>design and first-order simulation only</b> — no built hardware, no physical validation, and no safety certification yet. It is published as research to be scrutinised and built upon, not deployed. See the safety notice in the repository.</p>
+  </div>
+</section>
+
+<section id="hygiene">
+  <div class="wrap">
+    <h2>Clean for the next person</h2>
+    <p class="lead">The first question about public sleeping infrastructure isn’t “is it safe?” — it’s “who wants to sleep where a stranger just was?” So the cell assumes the worst every cycle and returns itself to a known-clean state: designed for bodily fluids, plumbed to mains water and sewer, sanitised by heat and chemistry — not wiped between guests.</p>
+    <figure class="shot">
+      <img src="assets/clean.jpg" alt="X-ray cross-section of the cell during its cleaning cycle, showing the bore and the piston/squeegee mechanism" loading="lazy">
+    </figure>
+    <p class="shotcap">The cleaning cycle in x-ray cutaway — the bore is washed and squeegeed on the sealed service side, and everything drains away before the cell reopens.</p>
+    <table>
+      <thead><tr><th>Design element</th><th>Approach</th></tr></thead>
+      <tbody>
+        <tr><td><b>Worst-case every cycle</b></td><td>No “quick wipe between guests.” The cell is plumbed to city mains and sewer and runs a full cycle each time — detergent → 82–90 °C hot water / steam → metered disinfectant → squeegee → drain — assuming bodily fluids are present.</td></tr>
+        <tr><td><b>Wash in transit, not a soak</b></td><td>The dirtiest surfaces — the piston face and mouth sill — are on the <b>public</b> side and can’t be reached by flooding a sealed chamber. Instead the piston sweeps past fixed in-bore wash stations, and a travelling squeegee scrubs the sealed chamber while the piston is parked.</td></tr>
+        <tr><td><b>Heat + chemistry</b></td><td>Heat sanitises (thermal only — nothing is burned; pyrolysis was rejected) and a metered disinfectant targets what heat alone may miss. The chemical is a simple refillable consumable.</td></tr>
+        <tr><td><b>Nothing is trapped</b></td><td>The same invariant as the safety case: everything is pushed <b>out</b> the mouth to a flush pavement grate, the wash media drains to an internal sump → sewer, and the service side stays <b>sealed</b> — debris never crosses the piston.</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:22px" class="note"><b>Honest status:</b> the cleaning parts and choreography are designed and space-claimed in the CAD, but the wash hydraulics, chemical dosing, drainage, and freeze / sewer-discharge compliance are <b>unvalidated</b> — bench tests come before any of it is trusted. None of it is built.</p>
   </div>
 </section>
 
