@@ -33,9 +33,16 @@ DAWN = 810          # dawn fully established; the last ~30 frames hold "ready"
 END = 840
 
 # --- tunables (aesthetic; hand-tune in Blender -- this is a scaffold) ---------
-NIGHTFACTOR_DAWN = 0.25   # ease the night<->day sky mix toward day for pre-dawn
 LUMINAIRE_DAWN = 6.0      # sterile service light eased down as dawn takes over
 EXPOSURE_DAWN = 0.9       # gentle lift for the dawn reveal (S3 held 0.5)
+# a dedicated warm dawn sky (peach horizon -> soft -> cool zenith) that S4
+# crossfades INTO from the S3 void -- NOT the cool midday sky (that read grey).
+DAWN_HORIZON = (0.98, 0.50, 0.26)
+DAWN_MID = (0.90, 0.56, 0.46)
+DAWN_ZENITH = (0.20, 0.29, 0.56)
+DAWN_SKY_STRENGTH = 1.3
+DAWN_SUN = (4.5, (1.0, 0.74, 0.50),               # strong, warm...
+           (math.radians(-6), math.radians(72), math.radians(4)))   # ...low & raking
 
 
 # --- slotted-action fcurve access (Blender 5.2, matches narrative_link_clean) --
@@ -76,6 +83,26 @@ def node_anim(nt):
     if nt.animation_data is None:
         nt.animation_data_create()
     return nt
+
+
+def sky_bg(nt, horizon, mid, zenith, strength):
+    """A graded-sky Background node (ColorRamp on the up-component of the ray)."""
+    bg = nt.nodes.new("ShaderNodeBackground")
+    bg.inputs["Strength"].default_value = strength
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Incoming"], sep.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    nt.links.new(sep.outputs["Z"], ramp.inputs["Fac"])
+    e = ramp.color_ramp.elements
+    e[0].position = 0.0
+    e[0].color = (*horizon, 1.0)
+    e[1].position = 1.0
+    e[1].color = (*zenith, 1.0)
+    m = ramp.color_ramp.elements.new(0.4)
+    m.color = (*mid, 1.0)
+    nt.links.new(ramp.outputs["Color"], bg.inputs["Color"])
+    return bg
 
 
 # --- 1. de-x-ray: the shell resolves from the S3 cutaway back to SOLID ---------
@@ -124,34 +151,34 @@ def ease_luminaire():
     print("  luminaire %.0f -> %.0f (dawn takes over) by f%d" % (s0, LUMINAIRE_DAWN, DAWN))
 
 
-# --- 3. world: the black void warms to a pre-dawn sky --------------------------
+# --- 3. world: the S3 black void crossfades INTO a warm dawn sky ---------------
 def warm_world():
     w = bpy.context.scene.world
     if not w or not w.node_tree:
         print("  [skip] no world node tree")
         return
     nt = node_anim(w.node_tree)
-    act = nt.animation_data.action
-    nf = nt.nodes.get("NightFactor")
-    if nf:
-        f0 = val_at(act, 'NightFactor"].outputs[0]', S3_END)
-        if f0 is None:
-            f0 = nf.outputs[0].default_value
-        ramp(nf.outputs[0], [
-            (S3_END, f0), (S4_A, f0), (DAWN, NIGHTFACTOR_DAWN), (END, NIGHTFACTOR_DAWN),
-        ])
-        print("  NightFactor %.2f -> %.2f (night gives way to dawn)" % (f0, NIGHTFACTOR_DAWN))
-    # the night sky was dimmed to 0 for the S3 void; lift it back so a sky exists
-    # to warm (the sun does the warmth; keeping the mix low reads pre-dawn).
-    ns = nt.nodes.get("Background.001")
-    if ns:
-        s0 = val_at(act, 'Background.001"].inputs[1]', S3_END)
-        if s0 is None:
-            s0 = ns.inputs[1].default_value
-        ramp(ns.inputs[1], [
-            (S3_END, s0), (S4_A, s0), (DAWN, 1.4), (END, 1.4),
-        ])
-        print("  night-sky strength %.2f -> 1.4 (void -> sky)" % s0)
+    if nt.nodes.get("S4_DawnMix"):
+        print("  [skip] dawn sky already wired")
+        return
+    out = next((n for n in nt.nodes if n.type == "OUTPUT_WORLD"), None)
+    if not out or not out.inputs["Surface"].links:
+        print("  [skip] world output unlinked")
+        return
+    existing = out.inputs["Surface"].links[0].from_node   # S1/S2/S3 day/night mix
+    dawn = sky_bg(nt, DAWN_HORIZON, DAWN_MID, DAWN_ZENITH, DAWN_SKY_STRENGTH)
+    dawn.name = "S4_DawnSky"
+    df = nt.nodes.new("ShaderNodeValue")
+    df.name = df.label = "DawnFactor"
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.name = "S4_DawnMix"
+    nt.links.new(df.outputs[0], mix.inputs["Fac"])
+    nt.links.new(existing.outputs[0], mix.inputs[1])       # Fac 0 = S3 void, untouched
+    nt.links.new(dawn.outputs["Background"], mix.inputs[2])  # Fac 1 = warm dawn
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    # 0 through the S3 tail (so S1/S2/S3 are byte-identical), then bloom to dawn
+    ramp(df.outputs[0], [(S3_END, 0.0), (S4_A, 0.0), (DAWN, 1.0), (END, 1.0)])
+    print("  world: S3 void -> warm dawn sky (DawnFactor 0->1 by f%d)" % DAWN)
 
 
 # --- 4. sun: the cool S2/S3 moon becomes a low, warm dawn sun ------------------
@@ -162,8 +189,7 @@ def dawn_sun():
         return
     # read what S3 held, then rise + warm it. low grazing angle = dawn.
     e0 = sun.data.energy
-    dawn = (2.6, (1.0, 0.80, 0.62),
-            (math.radians(-8), math.radians(70), math.radians(6)))   # low, warm, side
+    dawn = DAWN_SUN
     sun.data.keyframe_insert("energy", frame=S3_END)
     sun.data.keyframe_insert("color", frame=S3_END)
     sun.keyframe_insert("rotation_euler", frame=S3_END)
