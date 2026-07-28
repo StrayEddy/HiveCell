@@ -366,9 +366,23 @@ def build_cleaning(doc, sheet):
     tdp = sheet.trenchDepth.Value
     tm = sheet.trenchMargin.Value
     ground = -(h / 2.0 + t) - sheet.sillHeight.Value          # pavement level (Z)
+    # a real GRATED cover, not a plain trough: slots run across the channel (along X)
+    # so the solids the closing sweep ejects drop through into the channel -> sewer.
+    # Solid base + Y end-frame + X side-rails keep it a drain, not an open hole.
+    # (slot pattern is a local detail, cf. the SqueegeeDrive cross-section above.)
+    tlen = w + 2 * tm                                          # grate span across the mouth (Y)
+    bar_w, slot_w = 14.0, 22.0                                 # grate bar / open slot (Y)
+    side_rail, end_margin = 8.0, 25.0                          # solid X edges + Y end frame
+    slot_depth = 70.0                                          # slot cut depth into the tdp channel
+    grate = Part.makeBox(tw, tlen, tdp, App.Vector(-tw, -tlen / 2.0, ground - tdp))
+    y = -tlen / 2.0 + end_margin
+    while y + slot_w <= tlen / 2.0 - end_margin:
+        grate = grate.cut(Part.makeBox(
+            tw - 2 * side_rail, slot_w, slot_depth + 1.0,
+            App.Vector(-tw + side_rail, y, ground - slot_depth)))
+        y += bar_w + slot_w
     trench = doc.addObject("Part::Feature", "TrenchDrain")
-    trench.Shape = Part.makeBox(tw, w + 2 * tm, tdp,
-                                App.Vector(-tw, -(w + 2 * tm) / 2.0, ground - tdp))
+    trench.Shape = grate
     parts["TrenchDrain"] = trench
 
     # 3. internal back sump: takes the WASH MEDIA (hot water + chemicals) to sewer,
