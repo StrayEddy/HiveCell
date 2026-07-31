@@ -23,7 +23,6 @@ import os
 
 ROOT = "/home/eddy/Projects/HiveCell"
 HIVE = os.path.join(ROOT, "blender", "hivecell.blend")
-MODELS = os.path.join(ROOT, "blender", "models")
 NARR = os.path.join(ROOT, "blender", "narrative.blend")
 
 CUT = 553           # S2->S3 cut: the clean cycle starts here (piston already flush)
@@ -74,22 +73,31 @@ def link_clean_actions():
     return have
 
 
-# --- import cleaning geometry (local mesh; native CAD frame aligns w/ hero) ---
-def import_obj(part, mat):
+# --- link cleaning geometry (read-only mesh from hivecell; object is local) ---
+def link_part(part, mat):
+    """Create/refresh a LOCAL object whose MESH is LINKED from hivecell.blend --
+    same architecture as the 54 core cell parts (motion/placement local, geometry
+    canonical). Per-shot material is pinned as an OBJECT-level override, since the
+    linked mesh data is read-only. NOTE: TrenchDrain (the grate) is deliberately
+    NOT sourced here -- it lives locally in narrative, not in hivecell (Eddy's call)."""
     o = bpy.data.objects.get(part)
-    if o:
-        return o
-    bpy.ops.wm.obj_import(filepath=os.path.join(MODELS, part + ".obj"),
-                          up_axis="Z", forward_axis="Y")
-    objs = list(bpy.context.selected_objects)
-    o = objs[0]
-    o.name = part
-    for x in objs[1:]:
-        x.name = part + "_x"
-    o.data.materials.clear()
-    o.data.materials.append(mat)
-    for p in o.data.polygons:
-        p.use_smooth = True
+    m = next((mm for mm in bpy.data.meshes if mm.name == part and mm.library), None)
+    if m is None:
+        with bpy.data.libraries.load(HIVE, link=True) as (src, dst):
+            assert part in src.meshes, "hivecell.blend has no mesh %r" % part
+            dst.meshes = [part]
+        m = next(mm for mm in bpy.data.meshes if mm.name == part and mm.library)
+    if o is None:
+        o = bpy.data.objects.new(part, m)
+        bpy.context.scene.collection.objects.link(o)
+    elif o.data is not m:
+        old = o.data
+        o.data = m
+        if old and old.library is None and old.users == 0:
+            bpy.data.meshes.remove(old)
+    if o.material_slots:                    # per-shot look as an OBJECT-level override
+        o.material_slots[0].link = "OBJECT"
+        o.material_slots[0].material = mat
     return o
 
 
@@ -276,9 +284,9 @@ else:
     # all mechanics are non-emissive: bright metal that catches the white luminaire.
     mat_sq = mat_pbr("cell_Squeegee", (0.62, 0.65, 0.70), 0.85, 0.18)
     mat_spray = mat_pbr("cell_Spray", (0.35, 0.37, 0.40), 0.8, 0.35)
-    sq = import_obj("ServiceSqueegee", mat_sq)
-    sr_f = import_obj("SprayRing", mat_spray)
-    sr_d = import_obj("ServiceSprayRing", mat_spray)
+    sq = link_part("ServiceSqueegee", mat_sq)
+    sr_f = link_part("SprayRing", mat_spray)
+    sr_d = link_part("ServiceSprayRing", mat_spray)
 
     # MOTION (canonical, linked from hivecell.blend)
     rewire_local(bpy.data.objects["Piston"], acts["HC_Piston_Clean"])
