@@ -9,3 +9,13 @@ if ! "$REPO_ROOT/scripts/run_selftest.sh"; then
   exit 1
 fi
 echo "pre-push: safety self-tests passed."
+
+# Git LFS: upload LFS-tracked objects (*.blend) for the refs being pushed.
+# Needed explicitly here because core.hooksPath=.githooks bypasses the hook
+# git-lfs installs under .git/hooks. Reads the ref list from stdin (untouched
+# above) and takes <remote-name> <remote-url> as "$@".
+command -v git-lfs >/dev/null 2>&1 || {
+  echo "pre-push: BLOCKED -- repo uses Git LFS but 'git-lfs' is not installed (https://git-lfs.com)." >&2
+  exit 2
+}
+git lfs pre-push "$@"
