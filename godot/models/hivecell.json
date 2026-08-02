@@ -19,7 +19,8 @@
   "moving_parts": [
     "Piston",
     "WiperSeals",
-    "ServiceSqueegee"
+    "ServiceSqueegee",
+    "SqueegeeYoke"
   ],
   "parts": [
     "CapsuleShell",
@@ -30,6 +31,7 @@
     "ServiceSprayRing",
     "ServiceSqueegee",
     "SqueegeeDrive",
+    "SqueegeeYoke",
     "TrenchDrain",
     "SumpDrain",
     "ServicePlant"

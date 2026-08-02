@@ -49,6 +49,7 @@ PARAMS = [
     ("actuatorGap",     "60 mm",                         "gap: deployed piston rear to magazine front"),
     ("chainWidth",      "60 mm",                         "rigid-chain cross-section width Y (representative)"),
     ("chainHeight",     "60 mm",                         "rigid-chain cross-section height Z (representative)"),
+    ("squeegeeChainOffsetY","430 mm",                    "squeegee-drive chain lane, offset +Y INSIDE the sealed bore (no wall slot); shares the chamber with the central piston chain by temporal exclusivity [ADR-0021]"),
     ("magazineDepth",   "300 mm",                        "chain magazine/drive extent along X (compact)"),
     ("magazineSize",    "650 mm",                        "chain magazine Y and Z (holds the coiled chain)"),
     ("luminaireWidth",  "140 mm",                        "interior light strip width Y (top-centre, flush crown) [ADR-0014]"),
@@ -351,14 +352,38 @@ def build_cleaning(doc, sheet):
 
     # 1d. dedicated squeegee drive (ADR-0020): the squeegee's OWN compact rigid-chain, a
     #     modular unit that nests in the back-of-house BESIDE the piston's actuator (no added
-    #     depth) so it can be bench-tested + swapped independently. Pushes the squeegee's back
-    #     via a yoke (offset-to-central coupling TBD). Fixed, like the piston magazine.
+    #     depth) so it can be bench-tested + swapped independently. Fixed magazine, like the piston's.
     ms = sheet.magazineSize.Value
-    sdw, sdh = 260.0, 520.0                                   # drive cross-section Y, Z
+    sdw, sdh = 260.0, 520.0                                   # drive magazine cross-section Y, Z
     drive = doc.addObject("Part::Feature", "SqueegeeDrive")
     drive.Shape = Part.makeBox(md, sdw, sdh,
                                App.Vector(bl + gap, ms / 2.0 + 40.0, -sdh / 2.0))
     parts["SqueegeeDrive"] = drive
+
+    # 1e. drive chain + coupling yoke [ADR-0021]. The rigid chain runs INSIDE the sealed bore in
+    #     an OFFSET +Y lane (no wall slot, ADR-0007): valid because the piston (central) and the
+    #     squeegee (offset) never share the chamber at once -- piston deployed => squeegee stowed;
+    #     cleaning => piston parked flush at the mouth so the whole chamber is free. A short rigid
+    #     yoke reaches from the offset chain out to the ring's +Y frame; the bore guides against
+    #     rack (like the piston in its non-circular bore). Shown at the STOWED pose (chain
+    #     retracted, exposed column short) to match the stowed ServiceSqueegee.
+    cw = sheet.chainWidth.Value
+    ch = sheet.chainHeight.Value
+    offY = sheet.squeegeeChainOffsetY.Value
+    sq_back = sqx + sqth                                      # stowed squeegee back face
+    mag_front = bl + gap                                      # drive magazine front
+    chain = doc.addObject("Part::Feature", "SqueegeeChain")
+    chain.Shape = Part.makeBox(mag_front - sq_back, cw, ch,
+                               App.Vector(sq_back, offY - cw / 2.0, -ch / 2.0))
+    parts["SqueegeeChain"] = chain
+    # yoke: bridges the offset chain (Y=offY) out to the ring's +Y frame at the bore wall, at the
+    #       squeegee back. Representative bracket -- transfers push on the +Y side only (never -Y).
+    yoke_y0 = offY - cw / 2.0
+    yoke_y1 = w / 2.0 - c                                     # ring +Y outer frame (bore wall)
+    yoke = doc.addObject("Part::Feature", "SqueegeeYoke")
+    yoke.Shape = Part.makeBox(40.0, yoke_y1 - yoke_y0, 160.0,
+                              App.Vector(sq_back, yoke_y0, -80.0))
+    parts["SqueegeeYoke"] = yoke
 
     # 2. flush pavement trench drain at the mouth base (ground = sill height below the
     #    bore floor) -- catches the SOLIDS the closing sweep ejects, + rain -> sewer
@@ -491,6 +516,15 @@ def main():
     dbb = clean["SqueegeeDrive"].Shape.BoundBox
     print(f"SqueegeeDrive (modular, swappable): X={dbb.XMin:.0f}..{dbb.XMax:.0f} Y={dbb.YMin:.0f}..{dbb.YMax:.0f} "
           f"-- own rigid-chain, nests beside the piston actuator (install depth unchanged)")
+    scb = clean["SqueegeeChain"].Shape.BoundBox
+    ykb = clean["SqueegeeYoke"].Shape.BoundBox
+    chain_intr = ref_body.Shape.common(clean["SqueegeeChain"].Shape).Volume
+    yoke_intr = ref_body.Shape.common(clean["SqueegeeYoke"].Shape).Volume
+    print(f"SqueegeeChain+Yoke (ADR-0021 coupling): chain in an OFFSET +Y lane inside the bore "
+          f"Y={scb.YMin:.0f}..{scb.YMax:.0f} (wall at {sheet.cavityWidth.Value / 2.0:.0f}); yoke reaches "
+          f"Y={ykb.YMin:.0f}..{ykb.YMax:.0f} to the ring frame")
+    print(f"    no wall slot; cavity intrusion chain={chain_intr:.1f} yoke={yoke_intr:.1f} (want ~0: "
+          f"both stow behind the deployed piston, X>{sheet.cavityLength.Value:.0f})")
     for nm in ("TrenchDrain", "SumpDrain", "ServicePlant"):
         b = clean[nm].Shape.BoundBox
         print(f"{nm}: X={b.XMin:.0f}..{b.XMax:.0f}  Y={b.YLength:.0f}  Z={b.ZMin:.0f}..{b.ZMax:.0f} mm")

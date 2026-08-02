@@ -951,7 +951,56 @@ the (light) wiper drag. The back-of-house cross-section grows to house it (depth
 An independent self-test + quick-swap mounting are needed to actually realise the serviceability win.
 
 **Follow-ups.** CAD: `SqueegeeDrive` space claim added beside the actuator; coupling + chain
-column TBD. Twin: drive the squeegee's traverse from it. Re-export + diagram.
+column TBD (resolved in ADR-0021). Twin: drive the squeegee's traverse from it. Re-export + diagram.
+
+---
+
+## ADR-0021 — Squeegee-drive coupling: an in-bore offset chain lane + rigid yoke
+**Date:** 2026-08-02
+**Status:** Accepted (routing + space claim). Yoke stiffness/anti-rack detail, chain sizing,
+and the motor remain TBD.
+
+**Context.** ADR-0020 chose a dedicated rigid-chain `SqueegeeDrive` nested OFFSET in +Y beside
+the piston's central magazine, and parked the hard question: how does that offset drive push the
+CENTERED `ServiceSqueegee` ring **without a wall slot** (ADR-0007 forbids breaching the sealed
+barrel, and ADR-0007 also rules out external rails)? The piston's own rigid chain already occupies
+the central axis of the whole chamber when the cell is closed, so the squeegee drive cannot be
+coaxial with it.
+
+**Decision.** Run the squeegee's rigid chain **INSIDE the sealed bore**, in an **offset +Y lane**
+near the wall (`squeegeeChainOffsetY = 430 mm`, chain 60×60, wall at Y=500), and couple it to the
+ring's +Y frame with a **short rigid yoke** (`SqueegeeYoke`). No slot, no gland, no wall
+penetration. The bore itself guides the ring against rack (same principle as the piston in its
+non-circular bore), so the push is applied on the +Y side only.
+
+**Why it's sound (temporal exclusivity).** The piston (central) and the squeegee (offset) **never
+occupy the chamber at the same time**, so they can share the one sealed volume at different times:
+- **Cell open** → piston deployed into the chamber (X 0–2200); the squeegee + its chain + yoke are
+  fully retracted to the stow bay behind the deployed piston (X ≥ 2500). The offset lane is empty.
+- **Cleaning** → piston parked **flush at the mouth** (X 0–300); the whole chamber (X 300–2500) is
+  sealed and free, and the offset chain extends down the +Y lane to sweep the squeegee across it,
+  parallel to (and clear of) the piston's fully-extended central chain.
+CAD confirms zero `CavityReference` intrusion for both the chain and the yoke (they stow at
+X > cavityLength = 2200, behind the deployed piston) and that install depth is unchanged (2.94 m).
+
+**Sizing (first pass, placeholder pending the wiper spec).** Wiped bore perimeter ≈ 3.98 m; a
+single soft scrub lip (it does NOT seal — the piston does) at ~0.2 N/mm preload, wet-detergent
+μ≈0.3 → drag ≈ 240 N; design to ~500 N with margin. Sweep 2.2 m at ~0.2 m/s → ~100 W mechanical,
+sprocket torque ~24 N·m, ~40 rpm → a ~150–200 W gearmotor. Roughly an order of magnitude lighter
+than the sealing piston actuator, confirming ADR-0020's "small unit / light load."
+
+**Rejected / deferred.** A widened-wall chain channel with a traveling sealed gland (reintroduces
+a slot — rejected). A two-point push bar spanning +Y to −Y (stiffer, no cocking, but crosses the
+bore cross-section — deferred; revisit only if single-side push racks in test). The motorless
+water-pig (ADR-0020) stays the fallback if the chain proves overkill.
+
+**Accepted costs / to verify.** Single-side push relies on the bore as the anti-rack guide —
+confirm the ring doesn't cock under wiper drag (else the two-point yoke). Chain column + motor
+sizing vs the real wiper drag once the lip is specced. The +Y lane must stay clear of the deep
+`ServiceSprayRing` (X 2260–2340) and the luminaire (top crown) — CAD clearance holds.
+
+**Follow-ups.** CAD: `SqueegeeChain` + `SqueegeeYoke` added, offset +Y lane, stowed pose. Twin:
+drive the squeegee's traverse along the lane. Re-export objs + update `docs/cell_anatomy.svg`.
 
 ---
 
@@ -970,6 +1019,6 @@ column TBD. Twin: drive the squeegee's traverse from it. Re-export + diagram.
 6. Cleaning subsystem: ADR-0015–0019 (spray-and-squeegee wash, thermal-chemical sanitize, plumbed;
    solids out the mouth to a flush pavement grate, wash media to an internal piston-hidden sump —
    no street-face hardware) — SprayRing + deep ServiceSprayRing, a traveling ServiceSqueegee,
-   SumpDrain, TrenchDrain, ServicePlant, + the squeegee's own SqueegeeDrive (ADR-0020);
-   wash hydraulics + drive coupling TBD in build_model.py.
+   SumpDrain, TrenchDrain, ServicePlant, + the squeegee's own SqueegeeDrive with an in-bore
+   offset chain + yoke (ADR-0020/0021); wash hydraulics TBD in build_model.py.
 7. User interface: exterior availability indicator, interior grab feature, call button.

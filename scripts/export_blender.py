@@ -20,6 +20,7 @@ OUTDIR = "/home/eddy/Projects/HiveCell/blender/models"
 PARTS = ["CapsuleShell", "Piston", "WiperSeals", "ChainMagazine", "ChainColumn",
          # ADR-0015 cleaning subsystem (fixed space-claim parts)
          "SprayRing", "ServiceSprayRing", "ServiceSqueegee", "SqueegeeDrive",
+         "SqueegeeChain", "SqueegeeYoke",  # ADR-0021 in-bore offset chain + coupling yoke
          "TrenchDrain", "SumpDrain", "ServicePlant"]
 
 # Fine tessellation for smooth render silhouettes (mm units, pre-scale).
