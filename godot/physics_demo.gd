@@ -67,6 +67,18 @@ var spray_rings: Array[MeshInstance3D] = []
 var squeegee_x0 := 2.5                ## squeegee stow front (from the mesh), set on load
 var clean_t := 0.0                    ## cleaning-cycle timer
 
+## ADR-0021 squeegee-drive coupling: the drive's rigid chain runs INSIDE the sealed
+## bore in an OFFSET lane near the +Y wall (no wall slot, ADR-0007), and a short rigid
+## SqueegeeYoke reaches from it out to the ring's +Y frame. Like the piston's column the
+## chain's exposed length is physical, so it is drawn procedurally; the yoke is a CAD
+## mesh that simply rides with the ring. CAD +Y maps to -Z here (Z-up -> Y-up export).
+var squeegee_yoke: MeshInstance3D
+var squeegee_chain: MeshInstance3D
+var squeegee_chain_mesh: BoxMesh
+var squeegee_chain_offset := 0.43     ## lane offset from the bore axis, from manifest
+var squeegee_back := 2.55             ## stowed ring's back face (from the mesh), set on load
+var squeegee_drive_front := 2.64      ## fixed drive-magazine mouth (from the mesh), set on load
+
 var scenarios := [
 	{"title": "1 · EMPTY POD — no one, nothing inside", "things": 0,  "person": false, "intrude": false},
 	{"title": "2 · ONE ITEM LEFT — no one inside",       "things": 1,  "person": false, "intrude": false},
@@ -106,6 +118,7 @@ func _load_manifest() -> void:
 		piston_rear_deployed = float(d.get("piston_rear_deployed_m", piston_rear_deployed))
 		chain_w = float(d.get("chain_width_m", chain_w))
 		chain_h = float(d.get("chain_height_m", chain_h))
+		squeegee_chain_offset = float(d.get("squeegee_chain_offset_y_m", squeegee_chain_offset))
 		lum_length = float(d.get("luminaire_length_m", lum_length))
 		lum_width = float(d.get("luminaire_width_m", lum_width))
 		lum_margin = float(d.get("luminaire_end_margin_m", lum_margin))
@@ -207,13 +220,14 @@ func _build_world() -> void:
 	add_child(column)
 	_update_chain()
 
-	# ADR-0015..0020 cleaning subsystem: decorative space-claim meshes (no collision).
-	# Two spray rings + the traveling squeegee + its drive, the sump + trench drains,
-	# and the back-of-house plant -- exported at their CAD positions, so they land right.
+	# ADR-0015..0021 cleaning subsystem: decorative space-claim meshes (no collision).
+	# Two spray rings + the traveling squeegee, its drive + coupling yoke, the sump +
+	# trench drains, and the back-of-house plant -- exported at their CAD positions, so
+	# they land right.
 	var clean_col := _mat(Color(0.32, 0.46, 0.52), 0.55, 0.6)   # muted teal for the wash gear
 	var drain_col := _mat(Color(0.28, 0.30, 0.33), 0.7, 0.5)
 	for part in ["SprayRing", "ServiceSprayRing", "ServiceSqueegee", "SqueegeeDrive",
-			"SumpDrain", "TrenchDrain", "ServicePlant"]:
+			"SqueegeeYoke", "SumpDrain", "TrenchDrain", "ServicePlant"]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = load(MODELS + part + ".obj")
 		mi.name = part
@@ -221,10 +235,28 @@ func _build_world() -> void:
 		add_child(mi)
 		if part == "ServiceSqueegee":
 			squeegee = mi
-			squeegee_x0 = mi.mesh.get_aabb().position.x        # front of the stowed wiper
+			var q := mi.mesh.get_aabb()
+			squeegee_x0 = q.position.x                         # front of the stowed wiper
+			squeegee_back = q.position.x + q.size.x            # its back face: where the yoke bolts on
+		elif part == "SqueegeeYoke":
+			squeegee_yoke = mi
+		elif part == "SqueegeeDrive":
+			squeegee_drive_front = mi.mesh.get_aabb().position.x   # fixed magazine mouth
 		elif part.ends_with("SprayRing"):
 			mi.material_override = clean_col.duplicate()       # own material so we can pulse it
 			spray_rings.append(mi)
+
+	# The squeegee drive's exposed chain column, in its offset lane (ADR-0021). Same
+	# treatment as the piston's column: links lock straight to push the ring out, and
+	# coil back into the drive magazine to retract it, so the exposed span is physical.
+	squeegee_chain_mesh = BoxMesh.new()
+	squeegee_chain_mesh.size = Vector3(0.001, chain_w, chain_h)
+	squeegee_chain = MeshInstance3D.new()
+	squeegee_chain.name = "SqueegeeChain"
+	squeegee_chain.mesh = squeegee_chain_mesh
+	squeegee_chain.material_override = _mat(Color(0.55, 0.57, 0.60), 0.4, 0.9)
+	add_child(squeegee_chain)
+	_place_squeegee(0.0)   # stowed: ring, yoke and a short retracted column
 
 	# Ground: a large forgiving surface `sill_height` below the bore floor, so ejected
 	# items fall CLEAR of the mouth (the H4 siting rationale). Its top is at ground_y.
@@ -455,9 +487,23 @@ func _piston_face_x() -> float:
 
 func _place_squeegee(trav: float) -> void:
 	# trav 0 = stowed behind the piston; 1 = advanced to the mouth end of the chamber.
-	if squeegee:
-		var travel: float = squeegee_x0 - (mouth_x + 0.35)
-		squeegee.position.x = -trav * travel
+	if squeegee == null:
+		return
+	var travel: float = squeegee_x0 - (mouth_x + 0.35)
+	var dx: float = -trav * travel
+	squeegee.position.x = dx
+	# ADR-0021: the yoke is rigid, so it rides with the ring...
+	if squeegee_yoke:
+		squeegee_yoke.position.x = dx
+	# ...and the offset chain spans the (moving) yoke to the (fixed) drive magazine,
+	# the rest coiled inside it. It runs down the +Y lane (-Z here), parallel to and
+	# clear of the piston's central column -- the two never share the chamber at once.
+	if squeegee_chain:
+		var head: float = squeegee_back + dx
+		var col_len: float = maxf(squeegee_drive_front - head, 0.001)
+		squeegee_chain_mesh.size = Vector3(col_len, chain_w, chain_h)
+		squeegee_chain.position = Vector3((head + squeegee_drive_front) * 0.5, 0.0,
+			-squeegee_chain_offset)
 
 
 func _pulse_spray(intensity: float) -> void:

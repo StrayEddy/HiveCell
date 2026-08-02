@@ -53,6 +53,10 @@ manifest = {
     "magazine_front_m": round((sheet.barrelLength.Value + sheet.actuatorGap.Value) / 1000.0, 4),
     "chain_width_m": round(sheet.chainWidth.Value / 1000.0, 4),
     "chain_height_m": round(sheet.chainHeight.Value / 1000.0, 4),
+    # ADR-0021: the squeegee drive's chain runs in an OFFSET +Y lane inside the sealed
+    # bore. The twin draws that chain procedurally too (variable length), so it needs the
+    # lane offset; CAD +Y maps to Godot -Z under the Z-up -> Y-up rotation above.
+    "squeegee_chain_offset_y_m": round(sheet.squeegeeChainOffsetY.Value / 1000.0, 4),
     # capsule envelope, for siting the cell in a wall in the twin (mouth opening size)
     "interior_height_m": round(sheet.interiorHeight.Value / 1000.0, 4),
     "cavity_width_m": round(sheet.cavityWidth.Value / 1000.0, 4),

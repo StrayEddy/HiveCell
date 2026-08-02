@@ -6,6 +6,7 @@
   "magazine_front_m": 2.64,
   "chain_width_m": 0.06,
   "chain_height_m": 0.06,
+  "squeegee_chain_offset_y_m": 0.43,
   "interior_height_m": 1.1,
   "cavity_width_m": 1.0,
   "corner_radius_m": 0.125,
