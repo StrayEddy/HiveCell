@@ -158,6 +158,12 @@
   <text x="1043" y="377" class="small" text-anchor="middle" fill="#3a2f18">sq. drive</text>
   <g><circle cx="1043" cy="416" r="11" fill="#2b3a55"/><text x="1043" y="420" fill="#fff" text-anchor="middle">16</text><line x1="1043" y1="405" x2="1043" y2="394" class="leader"/></g>
 
+  <!-- SqueegeeYoke + offset chain lane (ADR-0021): the drive's rigid chain runs in a +Y lane
+       INSIDE the sealed bore (into the page here) and a short yoke couples it to the centered
+       squeegee ring — no wall slot. The faithful view is the B–B inset. -->
+  <rect x="994" y="342" width="12" height="16" class="tray" stroke="#5f646d" stroke-width="1.2"/>
+  <g><circle cx="968" cy="328" r="11" fill="#2b3a55"/><text x="968" y="332" fill="#fff" text-anchor="middle">17</text><line x1="978" y1="333" x2="994" y2="348" class="leader"/></g>
+
   <!-- A-A cut line on the section -->
   <line x1="640" y1="150" x2="640" y2="404" class="cut"/>
   <text x="640" y="145" class="small" text-anchor="middle" fill="#39465e">A</text>
@@ -194,6 +200,23 @@
     <text x="66" y="170" class="dim" text-anchor="middle">width 1000 · height 1100</text>
     <text x="66" y="184" class="dim" text-anchor="middle">corner R 125 (mm)</text>
     <text x="66" y="24" class="dim" text-anchor="middle">crown light (6)</text>
+  </g>
+
+  <!-- ===================== B-B CROSS SECTION INSET (drive coupling, ADR-0021) ===================== -->
+  <g transform="translate(1258,350)">
+    <text x="66" y="-8" class="small" text-anchor="middle" fill="#39465e">B–B  (service side — two chain lanes)</text>
+    <rect x="0" y="0" width="132" height="104" rx="24" class="wall"/>
+    <rect x="9" y="9" width="114" height="86" rx="16" class="bore"/>
+    <!-- ServiceSqueegee ring: wiper frame hugging the bore perimeter -->
+    <rect x="17" y="16" width="98" height="72" rx="10" fill="none" stroke="#39465e" stroke-width="3" opacity="0.5"/>
+    <!-- central piston chain (fills the axis when the cell is closed) -->
+    <rect x="60" y="46" width="12" height="12" class="mag"/>
+    <!-- offset +Y squeegee-drive chain: hugs the +Y wall, in its own lane -->
+    <rect x="100" y="46" width="11" height="11" class="mag" stroke="#5f646d"/>
+    <!-- yoke: short bridge from the offset chain out to the +Y ring frame -->
+    <rect x="108" y="49" width="9" height="6" class="tray" stroke="#5f646d" stroke-width="1"/>
+    <text x="66" y="120" class="dim" text-anchor="middle">central = piston chain · +Y = squeegee chain + yoke</text>
+    <text x="66" y="132" class="dim" text-anchor="middle">shared bore, no wall slot (ADR-0021)</text>
   </g>
 
   <!-- key dimensions strip -->
@@ -250,7 +273,7 @@
   </g>
 
   <!-- column 3 -->
-  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0020)</text>
+  <text x="940" y="516" class="grphdr" fill="#2f6f9e">CLEANING SUBSYSTEM  (ADR-0015–0021)</text>
   <g transform="translate(940,530)">
     <text x="0" y="14" class="fnname">10 · SprayRing (front)</text>
     <text x="0" y="29" class="fntext">Nozzle ring just PAST the closed piston — sprays the sealed chamber's</text>
@@ -280,9 +303,14 @@
     <text x="0" y="324" class="fntext">The squeegee's OWN compact rigid-chain — a modular, bench-testable,</text>
     <text x="0" y="336" class="fntext">swappable unit nested beside the piston's actuator. No added depth.</text>
 
-    <text x="0" y="360" class="fntext" fill="#7a818c">ADR-0015–0020: nothing on the public face; two rings + a traveling</text>
-    <text x="0" y="374" class="fntext" fill="#7a818c">squeegee (its own drive) wash the sealed chamber; media to the hidden sump.</text>
+    <text x="0" y="358" class="fnname">17 · SqueegeeChain + Yoke  (coupling, ADR-0021)</text>
+    <text x="0" y="372" class="fntext">The drive's chain runs in an OFFSET +Y lane INSIDE the sealed bore; a short</text>
+    <text x="0" y="384" class="fntext">yoke couples it to the centered ring — no wall slot. Works because the piston</text>
+    <text x="0" y="396" class="fntext">(central) and squeegee (offset) never share the chamber at once. See B–B.</text>
+
+    <text x="0" y="418" class="fntext" fill="#7a818c">ADR-0015–0021: nothing on the public face; two rings + a traveling</text>
+    <text x="0" y="432" class="fntext" fill="#7a818c">squeegee (its own drive) wash the sealed chamber; media to the hidden sump.</text>
   </g>
 
-  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0020) for the reasoning behind each part.</text>
+  <text x="40" y="998" class="dim">HiveCell · docs/cell_anatomy.svg · schematic overview — see docs/DECISIONS.md (ADR-0001…0021) for the reasoning behind each part.</text>
 </svg>
