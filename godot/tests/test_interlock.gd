@@ -30,9 +30,10 @@ func _check(cond: bool, msg: String) -> void:
 ## the machine must not be in the advancing (CLEARING) state.
 func _run(il, n: int, tag: String) -> void:
 	for i in n:
-		# Either safety trip -- SF1 life, or SF2 contact-over-limit -- must prevent
-		# the sweep from advancing into the pod.
-		var block_before: bool = il.life_present() or il.contact_over_limit
+		# Any safety trip -- SF1 life, SF2 contact-over-limit, or a drive with no
+		# power (SF4) -- must prevent the sweep from advancing into the pod.
+		var block_before: bool = il.life_present() or il.contact_over_limit \
+			or not il.drive_powered()
 		var p_before: float = il.progress
 		il.step(DT)
 		if block_before:
@@ -40,6 +41,25 @@ func _run(il, n: int, tag: String) -> void:
 				"%s: sweep ADVANCED while a safety trip was active (%.4f -> %.4f)" % [tag, p_before, il.progress])
 			_check(not il.advancing(),
 				"%s: entered CLEARING while a safety trip was active" % tag)
+
+
+## Step until `want` is the current state, or `cap` frames pass. No invariant
+## enforcement -- use _run() for that; this is just for getting somewhere.
+func _advance_to(il, want: int, cap: int) -> bool:
+	for i in cap:
+		if il.state == want:
+			return true
+		il.step(DT)
+	return il.state == want
+
+
+## Step until the sweep is genuinely underway, at least `upto` into the stroke.
+func _advance_to_sweep(il, upto: float) -> bool:
+	for i in 2000:
+		if il.state == Interlock.State.CLEARING and il.progress >= upto:
+			return true
+		il.step(DT)
+	return false
 
 
 func _new_il(demo := 1.0, hold := 0.2, dwell := 0.3):
@@ -118,6 +138,76 @@ func _initialize() -> void:
 	_run(il5, 300, "S5 SF2 contact trip")  # _run enforces "never advances while tripped"
 	_check(il5.progress < peak5 + 1e-6, "S5: advanced past peak after SF2 trip")
 	_check(il5.progress <= 0.001, "S5: did not reverse out after SF2 trip")
+
+	# Scenario 6 -- a safety trip while the pod is CLOSED (flush) must reverse it
+	# EARLY, not at the end of the hold dwell. The mouth-lip pinch (H8) lives at
+	# exactly this position. Regression guard for finding F-1 (ADR-0022): before
+	# the fix, CLEARED_HOLD re-read neither trip and held for the whole dwell.
+	for trip in ["SF2 contact", "SF1 life"]:
+		var il6 = _new_il(1.0, 2.0, 0.3)   # long hold: a late reverse is unmistakable
+		il6.bag_present = true
+		_check(_advance_to(il6, Interlock.State.CLEARED_HOLD, 1200),
+			"S6 %s: never reached CLEARED_HOLD to test" % trip)
+		_check(il6.progress >= 0.99, "S6 %s: not flush in CLEARED_HOLD" % trip)
+
+		if trip == "SF2 contact":
+			il6.contact_over_limit = true
+		else:
+			il6.occupant_alive = true
+		il6.step(DT)
+		_check(il6.state == Interlock.State.REDEPLOY,
+			"S6 %s: stayed flush -- trip ignored during the hold dwell (F-1)" % trip)
+
+		_run(il6, 300, "S6 %s reverse" % trip)
+		_check(il6.progress <= 0.001, "S6 %s: did not reverse out after the trip" % trip)
+
+	# Scenario 7 -- SF4 / FMEA F3 (ADR-0009): power lost MID-SWEEP must not sustain a
+	# holding force. The stored-energy return element relieves the piston back to
+	# deployed, and nothing advances while the drive is dead.
+	var il7 = _new_il()
+	il7.return_seconds = 0.5
+	il7.bag_present = true
+	_check(_advance_to_sweep(il7, 0.4), "S7: could not reach a mid-sweep state to test")
+	var peak7: float = il7.progress
+	il7.powered = false                    # blackout
+	_run(il7, 600, "S7 power loss mid-sweep")
+	_check(il7.progress < peak7 + 1e-6, "S7: advanced after power loss")
+	_check(il7.state == Interlock.State.UNPOWERED, "S7: did not enter UNPOWERED")
+	_check(il7.progress <= 0.001,
+		"S7: pin did NOT relieve -- piston still held mid-stroke without power (F3)")
+
+	# Scenario 8 -- SF4 at the FLUSH end: there the PASSIVE latch holds the pod closed
+	# with zero power (security + zero standby). Safe because geometry puts no occupant
+	# behind the piston (FMEA F5). The two behaviours must not be confused.
+	var il8 = _new_il(1.0, 2.0, 0.3)
+	il8.return_seconds = 0.5
+	il8.bag_present = true
+	_check(_advance_to(il8, Interlock.State.CLEARED_HOLD, 1200),
+		"S8: never reached CLEARED_HOLD to test")
+	il8.powered = false
+	_run(il8, 600, "S8 blackout at flush")
+	_check(il8.state == Interlock.State.UNPOWERED, "S8: did not enter UNPOWERED")
+	_check(il8.progress >= 0.99,
+		"S8: flush latch did not hold the pod closed without power")
+
+	# Scenario 9 -- the EXTERNAL E-stop (ADR-0023) is a Category 0 stop: it cuts drive
+	# power, taking the same fail-open path. Releasing it must NOT resume the sweep --
+	# the machine backs out and re-enters through LIFE_CHECK.
+	var il9 = _new_il()
+	il9.return_seconds = 0.5
+	il9.bag_present = true
+	_check(_advance_to_sweep(il9, 0.4), "S9: could not reach a mid-sweep state to test")
+	il9.estop = true
+	il9.step(DT)
+	_check(il9.state == Interlock.State.UNPOWERED, "S9: E-stop did not cut the drive")
+	var peak9: float = il9.progress
+	il9.estop = false                      # operator releases the button
+	il9.step(DT)
+	_check(il9.state != Interlock.State.CLEARING,
+		"S9: sweep RESUMED on E-stop release (must re-enter via LIFE_CHECK)")
+	_check(il9.progress <= peak9 + 1e-6, "S9: advanced on E-stop release")
+	_check(il9.state == Interlock.State.REDEPLOY or il9.state == Interlock.State.AVAILABLE,
+		"S9: recovered into an unexpected state (must back out, not resume)")
 
 	if failures == 0:
 		print("PASS: all interlock scenarios held (sweep never advanced against a safety trip).")

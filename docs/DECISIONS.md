@@ -1004,6 +1004,99 @@ drive the squeegee's traverse along the lane. Re-export objs + update `docs/cell
 
 ---
 
+## ADR-0022 — CLEARED_HOLD re-reads both safety trips (found by model checking)
+**Date:** 2026-08-03
+**Status:** Accepted. Implemented in the twin + spec; the availability cost is accepted as-is.
+
+**Context.** The formal model added for roadmap #1 (`spec/`, TLA+/TLC) found a defect in
+shipped interlock logic that neither the scenario self-test nor review had caught. The
+`CLEARED_HOLD` branch of `safety_interlock.gd` — the dwell with the piston closed and flush
+at the mouth — tested only `t >= hold_seconds`. It re-read **neither** SF1 nor SF2.
+
+So a safety-edge trip at the flush position went unacted-on for the remainder of the dwell
+(**2.0 s** at the twin's default). TLC reaches it by the route that matters: someone reaches
+into the mouth (**H5**) at the exact position the piston is completing to, and is held
+against the flush face. That is **H8**, the mouth-lip pinch — precisely the hazard SF2 exists
+to answer. Every other state already reversed on either trip; this one state did not.
+
+Bounded, not a crush: `Inv_NoCrush` held throughout (the piston never drives *past* the
+occupant, and contact stays at the 120 N cap, below the ~150 N powered-door limit). The
+defect is in the *latency* of the response, not its existence — but SF2's specification in
+`SAFETY.md` says "immediate stop and reverse", and up to a full dwell is not immediate.
+
+**Decision.** `CLEARED_HOLD` exits to `REDEPLOY` on `life_present() or contact_over_limit or
+t >= hold_seconds` — either trip cuts the dwell short, matching what `CLEARING` already did.
+
+**Why it's sound.** Reversing is the safe direction (the piston sweeps *away* from the
+occupant, toward the open mouth), so an early exit is never worse than serving out the dwell.
+There is no state in which staying flush longer is the safer choice: the "stay closed without
+power" requirement is met by the passive flush latch (ADR-0009), which is unpowered and
+unaffected by this path. Including SF1 as well as SF2 costs nothing and keeps the two trips
+symmetric across every state — a fault now opens the pod rather than holding it closed, which
+is the fail-safe direction.
+
+**Accepted costs.** Availability, not safety: a spurious edge or channel reading at the flush
+position now re-opens the cell instead of being ignored for ≤2 s. Judged the right trade for
+an unattended public unit where the alternative is a bounded pinch at the mouth lip. If
+nuisance re-opens show up in testing, the fix is a debounce on the trip, **not** restoring
+the dwell.
+
+**Follow-ups.** Done: twin (`safety_interlock.gd`), regression scenario S6 in
+`test_interlock.gd`, spec `ClearedHold` + `Inv_NoTripHeldAtFlush` in `Safety.cfg`, and a
+`hold-ignores-trips` mutant that re-injects the pre-fix code so the guard cannot silently rot.
+`SAFETY.md` SF2 updated.
+
+---
+
+## ADR-0023 — The external E-stop is a Category 0 stop into the SF4 fail-open path
+**Date:** 2026-08-03
+**Status:** Accepted (behaviour + twin/spec implementation). Rated hardware + PL assessment TBD.
+
+**Context.** ADR-0009 retained "an EXTERNAL / operator E-stop + remote tamper/fault
+monitoring (availability, not a trap function)" but never said what pressing it *does*.
+The twin had no E-stop input and no notion of drive power at all, so when the formal model
+(roadmap #1) encoded SF4, its E-stop and power-loss claims were verified against *intent*
+rather than against code — the one gap that verification effort left behind.
+
+**Decision.** The E-stop **removes drive power** (Category 0, IEC 60204-1) rather than
+commanding a controlled halt. It therefore enters exactly the same fail-open path as a
+blackout, with ADR-0009's position-dependent behaviour: the return element relieves the
+piston anywhere in the occupant zone, the passive latch holds the flush end. Releasing the
+button does **not** restart anything — the machine backs out to deployed and re-enters the
+cycle through `LIFE_CHECK`, so a fresh life-check must pass before the piston can advance.
+
+**Why it's sound.** A "freeze in place" E-stop would recreate **FMEA F3** exactly: a
+sustained pin with power gone and nothing able to detect or act (S4, D4 — the failure that
+forced the whole SF4 design-out). It would be a deliberate mechanism for violating the one
+requirement SF4 exists to enforce. Category 0 instead makes the E-stop *inherit* the
+mitigation rather than bypass it: the same stored-energy return element, the same latch, the
+same relief. And the no-auto-restart rule is what stops the E-stop from becoming a way to
+resume a sweep over someone an operator hit the button to protect.
+
+**Rejected.**
+- *Freeze in place / hold position.* Recreates F3. Rejected.
+- *Category 1 (controlled decel, then power removal).* The decel phase buys a smooth stop
+  the machine does not need — the piston's design speed is millimetres per second
+  (ADR-0007's sizing put it at ~3.7 mm/s), so there is nothing to decelerate, and the phase
+  would keep the drive powered during exactly the window the E-stop was pressed to end.
+- *Interior / occupant-operated E-stop.* Already rejected in ADR-0009 as a vandalism and
+  abuse surface in unattended public units. Unchanged: this one is external/operator only.
+
+**Accepted costs / to verify.** The E-stop's effectiveness now rests entirely on the same
+~1.5 kN return element as SF4, so **FMEA F6** ("fail-open path does not release") covers it
+too — that is the same single failure mode, not a new one, but it does mean the E-stop is no
+better than that element's reliability and needs the same periodic self-test. Availability
+cost: an E-stop press re-opens the cell rather than holding it closed. Rated hardware, the
+safety controller, and the PL assessment remain open (as for all of SF1/SF2).
+
+**Follow-ups.** Done: `safety_interlock.gd` gains `powered` / `estop` / `UNPOWERED` +
+`_fail_open` / `_recover`; scenarios S7–S9 in `test_interlock.gd`; the TLA+ spec's SF4
+claims (`Inv_EStopHalts`, `P_NoAdvanceUnpowered`, `P_NoAutoRestart`, `P_PinRelieves`) now
+verify against code rather than intent. The unpowered return *rate* stays a placeholder —
+it is spring force minus seal drag, and seal drag is issue #9.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface

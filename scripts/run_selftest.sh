@@ -32,4 +32,21 @@ for t in "$REPO_ROOT"/godot/tests/*.gd; do
   echo "run_selftest: $name ..."
   "$BIN" --headless --path "$REPO_ROOT/godot" --script "res://tests/$name" || rc=1
 done
+# Formal verification of the interlock invariants (TLA+ / TLC, roadmap #1).
+# Skipped with a warning when there is no JRE, so a contributor without Java is
+# not blocked from pushing -- the Godot tests above still gate. Set
+# HIVECELL_SKIP_MODELCHECK=1 to skip it deliberately (it costs ~70s).
+if [[ "${HIVECELL_SKIP_MODELCHECK:-0}" == "1" ]]; then
+  echo "run_selftest: model check SKIPPED (HIVECELL_SKIP_MODELCHECK=1)"
+else
+  echo "run_selftest: model-checking the safety interlock ..."
+  mc=0
+  "$REPO_ROOT/scripts/run_modelcheck.sh" || mc=$?   # set -e must not abort here
+  case "$mc" in
+    0) ;;
+    2) echo "run_selftest: model check SKIPPED (no Java / no tla2tools.jar) -- see spec/README.md" ;;
+    *) rc=1 ;;
+  esac
+fi
+
 [ "$rc" -eq 0 ] && echo "run_selftest: all tests passed." || { echo "run_selftest: TESTS FAILED"; exit 1; }

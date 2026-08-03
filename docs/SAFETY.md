@@ -40,7 +40,9 @@ not started.
   PL e** — sensor parts + certification TBD.
 - **SF2 Contact reaction** — *[sim: force cap + safety-edge trip]* chain-drive
   current/force monitoring + pressure-sensitive safety edge on the piston face =>
-  immediate stop and reverse to deployed. Independent of SF1. The trip is on YIELD,
+  immediate stop and reverse to deployed — from **every** state the piston can be in,
+  including closed-and-flush (ADR-0022; the mouth-lip pinch H8 sits exactly there).
+  Independent of SF1. The trip is on YIELD,
   not resistance magnitude: movable trash stays bounded; a non-yielding body makes
   force climb steeply — that is what a cap below the injury threshold catches.
 - **SF3 Gap elimination** — *[cad: gap-fill geometry + drag budget]* compliant
@@ -52,7 +54,8 @@ not started.
   residual-pin floor and the actuator force, so a low-friction seal (PTFE/lubricated/
   brush) shrinks the SF4 spring + actuator ~3.6x (40 vs 150 N/m). Must be measured.
 - **SF4 Fail-open drive** *(was: manual release + interior E-stop)* — *[decision:
-  design-out, see FMEA]* power loss must not sustain a holding force; the drive fails
+  design-out, see FMEA; sim: fail-open + latch + no-auto-restart]* power loss must not
+  sustain a holding force; the drive fails
   OPEN / back-drivable so a mis-detected pin relieves passively — no lever, no
   occupant-operated release device. An accessible release was rejected: it is a
   vandalism/abuse surface in unattended public units, and the sealed-in trap is
@@ -104,13 +107,52 @@ is INSUFFICIENT, so a ~1.5 kN stored-energy return element is REQUIRED (raising
 closing force ~2.3x). Retained, not occupant-facing: an EXTERNAL / operator E-stop +
 remote tamper/fault monitoring (availability, not a trap function).
 
+## Formal verification (TLA+ / TLC)
+The interlock's safety claims are **machine-proven over all reachable states**, not
+only the hand-written scenarios below: `spec/HiveCellInterlock.tla`, run by
+`scripts/run_modelcheck.sh` (gated on every push via `.githooks/pre-push`). The model
+covers the clearing FSM, the ADR-0012 fusion voter, the SF2 trip, and the external
+E-stop + SF4 fail-open drive. Full claim list, the model↔code correspondence table, and
+the abstractions it relies on: [`../spec/README.md`](../spec/README.md).
+
+The claim worth naming here is **`Inv_NoCrush`**: the piston never drives past a real
+occupant *even with all four SF1 channels blind*. That is the FMEA F1→F2 chain — the
+"defense in depth" phrase above — proven over a ground-truth occupant the sensors may
+miss entirely, at every position in every reachable state, rather than at the single
+hand-picked position scenario S5 checks. Also proven: SF4's pin actually relieves
+under FMEA F3 (blind SF1, occupant inside, power gone and not returning).
+
+Eight injected defects — mostly designs the ADRs explicitly rejected (a self-locking
+drive, 2-of-4 voting, faults reading clear) — are all caught, so the green result is
+evidence rather than decoration: `scripts/run_modelcheck.sh --mutants`.
+
+**It does not confer a PL rating** — it is logic, not rated hardware. Timing-layer
+faults (dropouts, races, stall) are deliberately abstracted away and remain open as
+roadmap #3. The model is hand-written and can drift from the GDScript.
+
+**Finding F-1 — fixed (ADR-0022).** Model checking found a real defect in shipped
+logic that the scenario self-test had not caught: `CLEARED_HOLD` re-read *neither*
+safety trip, testing only the dwell timer, so with the piston flush a safety-edge trip
+went unacted-on for up to `hold_seconds` (2.0 s). Reachable by someone reaching into
+the mouth (**H5**) as the sweep completes, held against the flush face — **H8**, the
+mouth-lip pinch, exactly where SF2 should act. Bounded, not a crush (`Inv_NoCrush` held
+throughout; contact stays at the 120 N cap), but a latency SF2's spec does not allow.
+`CLEARED_HOLD` now exits on either trip; guarded by `Inv_NoTripHeldAtFlush`, scenario
+S6, and a mutant that re-injects the pre-fix code. **This is the concrete argument for
+the method** — the defect survived review and scenario testing, and exhaustive state
+exploration found it in the first run.
+
 ## Implementation status (digital twin)
 The safety *logic* has a reference implementation in the Godot twin. It models
 behaviour and is regression-checked; it is NOT rated hardware and makes no
 performance-level (PL) claim.
 
-- `godot/safety_interlock.gd` — the interlock state machine. SF1 and SF2 are two
-  independent trips. SF1 = fail-safe OR across (simulated) diverse life-detection
+- `godot/safety_interlock.gd` — the interlock state machine. SF1, SF2 and SF4 are three
+  independent layers. SF4: `powered` / `estop` inputs and an `UNPOWERED` state implement
+  ADR-0009's position-dependent fail-open — the return element relieves a pin anywhere in
+  the occupant zone, the passive latch holds the flush end, and restoring power or
+  releasing the E-stop backs the piston out rather than resuming the sweep (ADR-0023).
+  SF1 and SF2 are two independent trips. SF1 = fail-safe OR across (simulated) diverse life-detection
   channels (radar vitals, thermal, CO₂, load-cell BCG); any channel, or any sensor
   fault, => "occupied" => no motion. SF2 = contact force over a safe cap
   (`SAFE_CONTACT_N` = 120 N, below the ~150 N powered-door limit). Either trip stops
@@ -118,7 +160,10 @@ performance-level (PL) claim.
   while either trip is active.
 - `godot/tests/test_interlock.gd` — headless self-test enforcing the invariant "the
   sweep never advances while a safety trip is active", across: empty+clear, occupied,
-  mid-sweep intrusion (SF1), sensor-fault fail-safe, and SF1-blind / SF2-catches.
+  mid-sweep intrusion (SF1), sensor-fault fail-safe, SF1-blind / SF2-catches, a
+  trip while closed-and-flush (S6, the ADR-0022 regression guard), and SF4 —
+  blackout mid-sweep relieving the pin (S7), the flush latch holding without power
+  (S8), and an E-stop that does not resume the sweep on release (S9, ADR-0023).
   Runs on every push via `.githooks/pre-push`.
 - `godot/physics_demo.gd` — physics scenarios (default Play scene). The drive-load
   model demonstrates yield-vs-magnitude: a 10-item trash pile peaks ~63 N (bounded,
@@ -138,7 +183,9 @@ performance-level (PL) claim.
 Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,
 H2 gap-fill *geometry* by SF3 (compliance TBV), H5/H8 further eased by SF5 (warning +
 slow final approach). H7 has a design decision (SF4/ADR-0009); H4 — sitting-height sill
-is an accepted single-layer trade (SF1 is the fall defense), see Siting rules.
+is an accepted single-layer trade (SF1 is the fall defense), see Siting rules. H7 is now
+also modelled, not only decided: the fail-open relief, the passive flush latch, and the
+no-auto-restart rule run in the twin and are machine-checked (SF4 above, ADR-0022/0023).
 
 ## Siting rules (facility-level, H4)
 Install constraints on the operator/installer, not device functions.

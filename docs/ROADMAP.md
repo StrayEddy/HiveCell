@@ -14,8 +14,20 @@ logic and the force budget can be made trustworthy. See
 
 | # | Item | Area | Why |
 |---|------|------|-----|
-| [#1](https://github.com/StrayEddy/HiveCell/issues/1) | Formal verification of the interlock invariant (model checking) | sim | Prove the headline safety claim over *all* reachable states, not just hand-written scenarios. Biggest assurance jump per hour — the FSM is already small and pure. |
 | [#2](https://github.com/StrayEddy/HiveCell/issues/2) | Safety requirements + traceability/verification matrix + FTA | safety | Link existing hazards/FMEA/tests into an auditable Hazard→Requirement→Design→Test→Result chain — the artifact a reviewer actually asks for. |
+
+**Done:** [#1](https://github.com/StrayEddy/HiveCell/issues/1) formal verification of
+the interlock invariants — TLA+ model in [`../spec/`](../spec/README.md), gated on
+every push. Proves the headline claim (and SF4's pin relief) over all reachable
+states, with a mutation suite so the green result means something. It paid for itself
+immediately: finding **F-1**, a real latency defect in `CLEARED_HOLD` that review and
+scenario testing had both missed, now fixed under **ADR-0022**.
+
+It also closed a gap it had itself exposed: `safety_interlock.gd` had no E-stop and no
+notion of power, so the spec's SF4 claims were verified against *intent*. Modelling them
+forced the unanswered question of what the E-stop actually does — now **ADR-0023**
+(Category 0, into the fail-open path) — and the twin implements it, so every claim in
+the spec is checked against shipped code.
 
 ## Next (medium priority)
 

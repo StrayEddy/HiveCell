@@ -39,14 +39,17 @@ Current state — **design + simulation / first-order analysis, no certified har
 | SF1 Occupancy detection (primary) | fail-safe voting logic + self-test; architecture decided — diverse-redundant suite (radar vitals + thermal + CO₂ + load/BCG), target ISO 13849 PL e (ADR-0012) — `[sim]` |
 | SF2 Contact-force reaction (safety edge) | independent force-cap trip in the twin + self-test — `[sim]` |
 | SF3 Gap-filling wiper seal | CAD geometry + drag budget; low friction now required (ADR-0011) — `[cad]` |
-| SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch + ~1.5 kN return spring (ADR-0009; required per the pin-relief check) — `[decision]` |
+| SF4 Fail-open drive (no occupant release) | decided: back-drivable + passive flush latch + ~1.5 kN return spring (ADR-0009; required per the pin-relief check); fail-open, latch and no-auto-restart now in the twin + machine-checked, external E-stop is a Category 0 stop into the same path (ADR-0023) — `[decision + sim]` |
 | SF5 Motion signalling + soft profile | soft velocity profile + signalling (green ready / red moving / orange closed / flashing-red alarm) in the twin + self-test — `[sim]` |
 
 The SF1+SF2 interlock is a shared, headless-testable state machine; its core invariant
 — *the sweep never advances while a safety trip is active* — is enforced by a self-test
-that gates every push (see Setup). The design principle is PREVENT (never move while
-occupied) → REACT (stop & reverse on contact) → fail safe; "push the occupant out" is
-not a mode the machine can enter.
+that gates every push (see Setup), and **formally verified over all reachable states**
+by a TLA+ model ([`spec/`](spec/README.md)) in that same gate. The strongest proven
+claim is that the piston never drives past a real occupant *even with all four
+life-detection channels blind* — the FMEA F1→F2 defence-in-depth chain. The design
+principle is PREVENT (never move while occupied) → REACT (stop & reverse on contact) →
+fail safe; "push the occupant out" is not a mode the machine can enter.
 
 **Notable decisions** (full rationale in `docs/DECISIONS.md`): the fail-open + return-spring
 requirements challenge the original rigid-chain actuator, so the **drive architecture is
@@ -78,6 +81,7 @@ the certification dossiers (ISO 13849 PL e for SF1; force/injury data for SF2).
 - `cad/`     — FreeCAD models (parametric)
 - `docs/`    — engineering notes, calculations
 - `godot/`   — simulation / digital twin project
+- `spec/`    — TLA+ formal model of the safety interlock ([what it proves](spec/README.md))
 - `blender/` — rendering assets (later)
 - `docs/DECISIONS.md` — engineering decision log (read this first)
 - `docs/SAFETY.md`   — machine-safety analysis (hazards + safety functions)
@@ -89,6 +93,12 @@ The piston retracts into a space people occupy, so its motion is gated behind a
 life-detection interlock (`godot/safety_interlock.gd`, per `docs/SAFETY.md`). A
 headless self-test enforces the core invariant — the clearing sweep never
 advances while life is detected — and a pre-push hook blocks pushes if it fails.
+
+That invariant is also **machine-proven over every reachable state** by a TLA+ model
+([`spec/`](spec/README.md)), which runs in the same gate. It needs a JRE
+(`sudo pacman -S jre-openjdk` or equivalent); without one it is skipped with a
+warning rather than blocking you, and `HIVECELL_SKIP_MODELCHECK=1` skips it
+deliberately.
 
 After cloning, enable the hook once (it lives in `.githooks/`, but `git` must be
 pointed at it):
@@ -110,7 +120,7 @@ for its medium:
 
 - **Hardware** (`cad/`, `blender/`, `renders/`) — CERN-OHL-S-2.0 (strongly reciprocal)
 - **Documentation** (`docs/`, this README) — CC-BY-4.0
-- **Software** (`godot/`, `scripts/`) — Apache-2.0
+- **Software** (`godot/`, `scripts/`, `spec/`) — Apache-2.0
 
 You may use, modify, and redistribute — including commercially — with attribution;
 hardware derivatives must stay open under the same terms. Full texts are in

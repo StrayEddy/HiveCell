@@ -16,6 +16,11 @@
 __pycache__/
 *.pyc
 
+# TLA+ / TLC: commit the spec + configs, ignore the checker's scratch output
+spec/states/
+spec/*.old
+*.toolbox/
+
 # OS / editor
 .DS_Store
 *~

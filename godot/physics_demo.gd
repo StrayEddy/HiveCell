@@ -676,6 +676,7 @@ func _update_hud() -> void:
 		SafetyInterlock.State.CLEARED_HOLD: "CLEARED (flush)",
 		SafetyInterlock.State.REDEPLOY: "REDEPLOYING",
 		SafetyInterlock.State.BLOCKED_OCCUPIED: "BLOCKED — life detected, alert human",
+		SafetyInterlock.State.UNPOWERED: "UNPOWERED — fail-open (SF4/ADR-0009)",
 	}
 	var life := il.life_present()
 	var over := il.contact_over_limit

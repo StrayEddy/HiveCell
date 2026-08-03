@@ -10,7 +10,8 @@ class_name SafetyInterlock
 ## real hardware). The only motion permitted while life is present is REVERSING
 ## back to the safe deployed position.
 
-enum State { AVAILABLE, LIFE_CHECK, CLEARING, CLEARED_HOLD, REDEPLOY, BLOCKED_OCCUPIED }
+enum State { AVAILABLE, LIFE_CHECK, CLEARING, CLEARED_HOLD, REDEPLOY, BLOCKED_OCCUPIED,
+	UNPOWERED }
 enum SignalLevel { READY, MOVING, CLOSED, ALARM }   # green / red / orange / flashing red
 
 var profile := SoftProfile.new()    # SF5 soft velocity profile (shapes the sweep)
@@ -26,6 +27,12 @@ var demo_seconds := 8.0
 var hold_seconds := 2.0
 var life_check_seconds := 1.5
 
+## Duration of the UNPOWERED return stroke, driven by the stored-energy return
+## element rather than the drive. PLACEHOLDER: the real rate is spring force
+## minus seal drag, and seal drag is the project's master unknown (ADR-0011,
+## issue #9). Only the DIRECTION and the fact that it completes are claimed here.
+var return_seconds := 4.0
+
 # --- simulated sensor inputs (ground truth the twin/test drives) ---
 var occupant_alive := false   ## a living person/animal is inside right now
 var sensor_fault := false     ## a faulted/unknown sensor (must fail safe)
@@ -33,6 +40,10 @@ var bag_present := true        ## an inanimate item left behind (owned here once
 var contact_over_limit := false  ## SF2: measured contact force exceeded the safe
                                  ## limit (a non-yielding obstruction / crush). An
                                  ## independent trip from SF1 life-detection.
+var powered := true       ## drive power present
+var estop := false        ## EXTERNAL / operator E-stop asserted. Not occupant-facing:
+                          ## ADR-0009 rejects any interior release as a vandalism
+                          ## surface in unattended public units.
 
 # --- state ---
 var state: int = State.AVAILABLE
@@ -59,6 +70,14 @@ func advancing() -> bool:
 	return state == State.CLEARING
 
 
+## SF4 (ADR-0009): the drive can only move the piston when powered AND not
+## e-stopped. An E-stop is a Category 0 stop -- it REMOVES drive power rather than
+## commanding a halt, so it takes the same fail-open path as a blackout and cannot
+## itself become a way to sustain a pin (ADR-0023).
+func drive_powered() -> bool:
+	return powered and not estop
+
+
 ## SF5 signalling: green = ready to occupy, red = about to move / moving,
 ## orange = closed (flush), flashing red = occupied + refusing to move (alarm).
 func signal_level() -> int:
@@ -67,8 +86,8 @@ func signal_level() -> int:
 			return SignalLevel.READY     # green: deployed, ready to occupy
 		State.CLEARED_HOLD:
 			return SignalLevel.CLOSED     # orange: closed / flush
-		State.BLOCKED_OCCUPIED:
-			return SignalLevel.ALARM      # flashing red: life detected, alert human
+		State.BLOCKED_OCCUPIED, State.UNPOWERED:
+			return SignalLevel.ALARM      # flashing red: refusing to run, alert human
 		_:
 			return SignalLevel.MOVING     # red: about to move or moving
 
@@ -76,7 +95,16 @@ func signal_level() -> int:
 func step(delta: float) -> void:
 	t += delta
 	if fusion != null:
-		fusion.tick(delta)   # age the sensor channels; unrefreshed => stale => occupied
+		# Age the sensor channels; unrefreshed => stale => occupied. Deliberately
+		# still ticked while unpowered: no power means no sampling, so the suite
+		# goes stale and the pod must re-prove itself empty before it can move.
+		fusion.tick(delta)
+	if not drive_powered():
+		_fail_open(delta)
+		return
+	if state == State.UNPOWERED:
+		_recover()
+		return
 	match state:
 		State.AVAILABLE:
 			# Pod in use. Session end never moves blindly: life-check first.
@@ -108,8 +136,14 @@ func step(delta: float) -> void:
 					bag_present = false
 					_goto(State.CLEARED_HOLD)
 		State.CLEARED_HOLD:
+			# Closed and flush. Either trip reverses EARLY instead of waiting out
+			# the dwell: the mouth-lip pinch (H8) sits exactly at this position,
+			# so SF2's "immediate stop and reverse" has to mean immediate here
+			# too. Reversing is the safe direction, so an early exit is never
+			# worse than the dwell -- at most it costs availability on a spurious
+			# read. (ADR-0022; found by model checking, spec/README.md F-1.)
 			progress = 1.0
-			if t >= hold_seconds:
+			if life_present() or contact_over_limit or t >= hold_seconds:
 				reverse_from = progress
 				_goto(State.REDEPLOY)
 		State.REDEPLOY:
@@ -129,6 +163,40 @@ func step(delta: float) -> void:
 			if not life_present():
 				clear_dwell = 0.0
 				_goto(State.LIFE_CHECK)
+
+
+## SF4 fail-open drive (ADR-0009) -- the answer to FMEA F3, the failure that drove
+## the whole decision: losing drive power must NEVER sustain a holding force, because
+## once power is gone nothing can detect or act. Behaviour is POSITION-DEPENDENT:
+##
+##   * occupant zone (anywhere short of flush) -- the stored-energy return element
+##     drives the piston back toward deployed, so a mis-detected pin relieves with no
+##     accessible part and no occupant action. Passive back-drive ALONE is NOT enough:
+##     `scripts/pin_relief.py` shows it stalls at the seal drag, flooring the residual
+##     pin at ~1.2 kN (~10x a safe force), which is exactly why ADR-0009 requires the
+##     ~1.5 kN return element modelled here.
+##   * flush end -- the PASSIVE latch holds the pod closed with zero power (security,
+##     vandal resistance, zero standby). Safe because the piston only ever sweeps
+##     TOWARD the mouth, so no occupant can be behind it there (FMEA F5).
+func _fail_open(delta: float) -> void:
+	if state != State.UNPOWERED:
+		_goto(State.UNPOWERED)
+	if progress >= 1.0 - 0.000001:
+		return    # passive flush latch: holds closed, needs no power
+	progress = maxf(progress - delta / maxf(return_seconds, 0.0001), 0.0)
+
+
+## Drive power restored, or the E-stop released. This must NEVER resume the sweep:
+## the machine backs out to deployed and re-enters the cycle from the top, so a fresh
+## life-check has to pass before anything advances again. (At the flush end a powered
+## solenoid releases the passive latch first, ADR-0009.)
+func _recover() -> void:
+	if progress <= 0.001:
+		progress = 0.0
+		_goto(State.AVAILABLE)
+	else:
+		reverse_from = progress
+		_goto(State.REDEPLOY)
 
 
 func _goto(s: int) -> void:
