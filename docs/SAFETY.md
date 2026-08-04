@@ -5,6 +5,11 @@ occupy. Method: identify hazards (ISO 12100 style), rate risk, assign safety
 functions. Users are assumed VULNERABLE (may be intoxicated, unconscious, disabled,
 asleep) and may NOT self-rescue.
 
+**Numbered requirements, the Hazard→Requirement→Design→Verification chain, fault trees
+and the gap register are in [`TRACEABILITY.md`](TRACEABILITY.md).** This file holds the
+hazards, FMEA and safety functions themselves; that one holds what discharges them —
+and, more importantly, what does not.
+
 ## Design principle (order matters)
 1. **PREVENT** — never move while occupied. Occupancy detection is the primary safeguard.
 2. **REACT** — on unexpected contact/resistance, STOP and REVERSE.
@@ -177,7 +182,9 @@ performance-level (PL) claim.
 - `scripts/build_model.py` — the wiper seals (SF3): two lip rings on the piston
   perimeter filling the 3 mm gap, verified to touch the bore and hug the piston
   (~0 overlap). `scripts/actuator_sizing.py` budgets their drag: 2 lips × ~4 m
-  perimeter @ 150 N/m ⇒ ~1190 N, the dominant load (design force ~2411 N, ×2 factor).
+  perimeter @ 150 N/m ⇒ ~1190 N, the dominant load. With the SF4 return element
+  (1567 N, ADR-0009) the closing resistance is 2773 N ⇒ **design force ~5546 N**
+  (×2 factor) — 2.3× the 2411 N sized before SF4.
   Exported to both twins as `WiperSeals.obj`, riding with the piston.
 
 Addressed in sim: H1/H6 by SF1 (+ fail-safe), H3/H5/H8 contact behaviour by SF2,

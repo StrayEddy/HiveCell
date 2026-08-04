@@ -29,8 +29,10 @@ performs cleaning and seals the cavity on the hidden service side.
 This machine moves a powered steel piston through a space people occupy, and users are
 assumed VULNERABLE (asleep, intoxicated, unwell) and unable to self-rescue — so safety
 is the first design constraint, not a feature. Full analysis in
-[`docs/SAFETY.md`](docs/SAFETY.md) (hazards, FMEA, safety functions); decisions in
-[`docs/DECISIONS.md`](docs/DECISIONS.md).
+[`docs/SAFETY.md`](docs/SAFETY.md) (hazards, FMEA, safety functions); the numbered
+requirements, verification matrix, fault trees and — most usefully — the register of
+what is *not* yet verified in [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md); decisions
+in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 Current state — **design + simulation / first-order analysis, no certified hardware yet:**
 
@@ -85,6 +87,7 @@ the certification dossiers (ISO 13849 PL e for SF1; force/injury data for SF2).
 - `blender/` — rendering assets (later)
 - `docs/DECISIONS.md` — engineering decision log (read this first)
 - `docs/SAFETY.md`   — machine-safety analysis (hazards + safety functions)
+- `docs/TRACEABILITY.md` — safety requirements, Hazard→Requirement→Design→Verification matrix, fault trees, gap register
 - `docs/ROADMAP.md`  — prioritized roadmap, indexing the [GitHub Issues](https://github.com/StrayEddy/HiveCell/issues)
 
 ## Setup

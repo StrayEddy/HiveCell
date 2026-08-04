@@ -12,9 +12,32 @@ logic and the force budget can be made trustworthy. See
 
 ## Now (high priority)
 
-| # | Item | Area | Why |
-|---|------|------|-----|
-| [#2](https://github.com/StrayEddy/HiveCell/issues/2) | Safety requirements + traceability/verification matrix + FTA | safety | Link existing hazards/FMEA/tests into an auditable Hazard→Requirement→Design→Test→Result chain — the artifact a reviewer actually asks for. |
+Nothing. Both former "Now" items are done — and the second of them says what should
+replace them.
+
+**What the [#2](https://github.com/StrayEddy/HiveCell/issues/2) fault trees recommend
+promoting** (a recommendation, not a re-prioritisation — the call is yours):
+
+- **[#9](https://github.com/StrayEddy/HiveCell/issues/9) seal drag** — gap **G1**. The
+  FTA showed it is not an isolated unknown: a high drag defeats the SF4 return element
+  *and* raises the force SF2 must bound, so it weakens TE-2 and TE-3 **together**. The
+  order-6 cut set protecting against a sustained pin is optimistic under exactly this
+  condition. It is already the roadmap's named critical path, below.
+- **[#8](https://github.com/StrayEddy/HiveCell/issues/8) SF2 force limit** — gap **G2**,
+  basic event **B7**. If the 120 N cap sits above the real injury threshold, SF2 bounds
+  force to a value that still injures: a *systematic* error, identical in every unit,
+  that no redundancy defends against and no current test would catch. The injury-data
+  half is desk work.
+
+Everything that could be verified from a desk about the *logic* now has been. What is
+left in the safety case is physics, and it is the physics that is unmeasured.
+
+**Done:** [#2](https://github.com/StrayEddy/HiveCell/issues/2) safety requirements +
+traceability matrix + FTA — [`TRACEABILITY.md`](TRACEABILITY.md). 21 numbered
+requirements (SR-001…021), every hazard resolved to ≥1 requirement and ≥1 test, three
+qualitative fault trees with minimal cut sets, and an 11-row gap register. It also
+caught a stale figure: `SAFETY.md` still quoted the pre-SF4 design force (2411 N) when
+`actuator_sizing.py` had moved to 5546 N.
 
 **Done:** [#1](https://github.com/StrayEddy/HiveCell/issues/1) formal verification of
 the interlock invariants — TLA+ model in [`../spec/`](../spec/README.md), gated on
