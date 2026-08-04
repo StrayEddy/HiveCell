@@ -1,0 +1,99 @@
+# HiveCell — the safety gate, enforced.
+#
+# The same checks .githooks/pre-push runs locally, but here they cannot be skipped:
+# locally the model check is skipped with a warning when there is no JRE, so the
+# project's headline claim ("machine-proven over all reachable states") was only
+# actually enforced on machines that happened to have Java. This runs it for every
+# push and every pull request, including from forks.
+#
+# Deliberately NOT here: the FreeCAD analyses (pin_relief / actuator_sizing /
+# seal_drag). They need the FreeCAD Python module, which is a heavy and fragile CI
+# dependency, and they are first-order desk calculations rather than regression
+# gates -- re-run them by hand when the assumptions change (see docs/TRACEABILITY.md §5).
+
+name: safety gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A superseded run tells you nothing; don't burn minutes on it.
+concurrency:
+  group: safety-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned, not "latest": a toolchain bump must be a visible commit, never a silent
+  # change in what the safety gate accepts.
+  GODOT_VERSION: 4.7.1-stable
+  TLA_VERSION: v1.7.4
+
+jobs:
+  model-check:
+    name: formal verification (TLA+ / TLC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache tla2tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hivecell/tla2tools.jar
+          key: tla2tools-${{ env.TLA_VERSION }}
+
+      # run_modelcheck.sh defaults $TLA_TOOLS to this path, so seeding it pins the
+      # version; without this the script would fetch whatever "latest" is today.
+      - name: Fetch tla2tools (pinned)
+        run: |
+          mkdir -p ~/.cache/hivecell
+          if [ ! -f ~/.cache/hivecell/tla2tools.jar ]; then
+            curl -fsSL -o ~/.cache/hivecell/tla2tools.jar \
+              "https://github.com/tlaplus/tlaplus/releases/download/${TLA_VERSION}/tla2tools.jar"
+          fi
+
+      - name: Model-check the interlock
+        run: ./scripts/run_modelcheck.sh
+
+      # A spec that passes proves nothing unless it CAN fail. Every injected defect
+      # must still be caught -- this is what keeps the green result above meaningful.
+      - name: Prove the checks can fail
+        run: ./scripts/run_modelcheck.sh --mutants
+
+  twin-tests:
+    name: digital twin self-tests (Godot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}
+
+      - name: Fetch Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -O \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
+
+      # The model check is its own job above; skip it here rather than paying for it twice.
+      - name: Run the self-tests
+        env:
+          GODOT_BIN: /home/runner/godot/Godot_v${{ env.GODOT_VERSION }}_linux.x86_64
+          HIVECELL_SKIP_MODELCHECK: '1'
+        run: ./scripts/run_selftest.sh

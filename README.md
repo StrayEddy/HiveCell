@@ -1,5 +1,7 @@
 # HiveCell
 
+[![safety gate](https://github.com/StrayEddy/HiveCell/actions/workflows/safety.yml/badge.svg)](https://github.com/StrayEddy/HiveCell/actions/workflows/safety.yml)
+
 **🌐 Project site & demo video: [strayeddy.github.io/HiveCell](https://strayeddy.github.io/HiveCell/)**
 
 > **Open-source hardware research — uncertified, not a deployable product.**
@@ -99,9 +101,15 @@ advances while life is detected — and a pre-push hook blocks pushes if it fail
 
 That invariant is also **machine-proven over every reachable state** by a TLA+ model
 ([`spec/`](spec/README.md)), which runs in the same gate. It needs a JRE
-(`sudo pacman -S jre-openjdk` or equivalent); without one it is skipped with a
+(`sudo pacman -S jre-openjdk` or equivalent); without one it is skipped locally with a
 warning rather than blocking you, and `HIVECELL_SKIP_MODELCHECK=1` skips it
 deliberately.
+
+**CI is the authority, not the local hook.** `.github/workflows/safety.yml` runs the
+twin self-tests and all three model-check configurations on every push and pull
+request, plus the mutation suite that proves those checks can still fail — with the
+Godot and TLA+ versions pinned, so a toolchain bump is a visible commit rather than a
+silent change in what the gate accepts. Nothing there is skippable.
 
 After cloning, enable the hook once (it lives in `.githooks/`, but `git` must be
 pointed at it):
