@@ -1171,6 +1171,121 @@ force-limitability under a jam unverified").
 
 ---
 
+## ADR-0025 — SF1 sensor suite: ceiling-mounted only, CO2 dropped, load cells provisional
+**Date:** 2026-08-04
+**Status:** Accepted (architecture + suite composition); load-cell inclusion gated on a
+bench test; part numbers remain TBD per ADR-0012
+
+**Context.** ADR-0012 set the SF1 architecture as four diverse-physics channels (radar
+vitals, thermal, CO2, floor load/BCG) with fail-safe voting, but left part numbers,
+mounting, and cost/complexity open. Working through placement (issue #4) surfaced three
+problems ADR-0012 didn't resolve: (1) most of these sensors can't see through the metal
+bore wall at all without a purpose-built aperture; (2) the piston is itself solid metal
+and sweeps through the bore, so a sensor's view of the shrinking occupant cavity changes
+with piston position; (3) the four channels differ sharply in mounting cost and
+vandal-exposure, not just in physics.
+
+**Decision.**
+1. **All sensors mount in the fixed barrel crown (ceiling); nothing mounts on the
+   piston.** The piston carries no wiring, electronics, or windows. This was considered
+   and rejected: a piston-mounted sensor elegantly tracks the shrinking cavity for free
+   (it's always at the boundary), and the wiring problem is solvable (extend the
+   existing ADR-0007 rod slot). It's rejected anyway because bundling multiple diverse
+   channels onto one moving carriage sharing one wiring path reintroduces exactly the
+   common-cause failure ADR-0012's diversity requirement exists to prevent — one
+   connector or seal fault at the slot could take out every channel on the piston at
+   once. Fixed, independently-wired crown sensors don't share that failure mode.
+   - **Load cells are the mechanical exception**, per physics, not preference: BCG/mass
+     sensing requires mechanical coupling to whatever bears the occupant's weight, so
+     they mount under the fixed floor. They need no aperture at all — the most
+     vandal-resistant channel by construction.
+2. **Mounting is a flush solid window wherever the physics allows it — never a hole,
+   however small.** Radar's usable RF-transparent hole diameter (~0.59×λ ≈ 2.9 mm at 60
+   GHz, waveguide-below-cutoff) is neither genuinely inconspicuous nor loss-free, so it
+   buys nothing over a dielectric radome. For channels where wavelength is small enough
+   that a mechanical hole would work optically (thermal, ToF), a hole is still rejected
+   on security grounds: a flush window has nothing to insert anything into, independent
+   of whether anyone notices it, whereas a hole's defense depends on it staying
+   unnoticed — not a sound basis for a PL e occupant-protection function protecting a
+   population `SAFETY.md` already calls vulnerable/may-not-self-rescue.
+3. **Channel C (NDIR CO2) is dropped from the suite.** It is the one channel that
+   categorically cannot take a solid flush window — gas has to physically diffuse
+   through something porous, which forces a more exposed, higher-maintenance vent
+   (baffled PTFE membrane) than any other channel needs. Accepted cost: CO2 was the
+   only channel that stayed elevated through a breath-hold/apnea event independent of
+   RF micro-motion — radar has the same blind spot in that instant (no chest-wall
+   motion to detect), so this removes a specific, real backstop for that edge case.
+   Partial mitigation, not a full substitute: thermal's heat-signature reading still
+   contributes an independent presence signal through a brief apnea event, since body
+   heat outlasts a breath-hold by a wide margin — so the suite doesn't go fully blind in
+   that window, it loses one of two independent confirmations.
+4. **Channel B (thermal) is kept**, reversing the earlier lean toward dropping it.
+   Cheap, mounts as a flush window with no vandal-exposure penalty over radar, and with
+   C gone it now carries more of the fused vote than ADR-0012's "supportive, never
+   sole" framing assumed — it is no longer a pure backstop.
+5. **Channel D (load cell/BCG) stays in the suite provisionally**, gated on a bench
+   test that does not exist yet: whether piston-drive vibration, transmitted through the
+   shared fixed-floor structure, swamps the BCG micro-motion signal, and whether
+   reference-subtraction (using known drive telemetry as a noise reference) recovers it.
+   Its safety-critical duty — confirming clear before a sweep starts — happens while the
+   piston is stationary and is unaffected by this; the open question is whether it can
+   keep contributing *during* a sweep, a case SF2's independent contact-force trip
+   already backstops regardless of the answer. If the bench test fails, D drops and the
+   confirmed suite is radar + thermal only.
+6. **Fusion logic gains a new input: current piston position, used as geometric ground
+   truth.** The volume behind the piston's current face cannot contain an occupant —
+   the piston's own solid body occupies it — so crown units there are excluded from the
+   vote as out-of-scope, not treated as faulted. Multiple radar/thermal units are still
+   spaced along the crown length (ADR-0012's existing "no dead zones" open item) so that
+   at any piston position at least one live unit per channel still sees the remaining
+   cavity through to the mouth.
+
+**Why.** Cost and vandal-exposure turned out not to track the same ranking as
+ADR-0012's original physics-diversity argument — the cheapest channel to cut (CO2) and
+the most expensive one (load cells) are different channels, and neither is the one
+ADR-0012's own text flagged as non-essential (thermal, "never sole"). Working through
+placement forced those criteria apart instead of collapsing them into a single "drop
+whichever" call.
+
+**Rejected alternatives.**
+- *Piston-mounted sensors.* Rejected in point 1 above — solves cavity-tracking
+  elegantly but reintroduces a common-cause failure path across channels.
+- *Small, deliberately inconspicuous holes instead of flush windows.* Rejected in point
+  2 — physically doesn't work for radar at a usable size, and is security-by-obscurity
+  for the others, which is the wrong control for a PL e function.
+- *Drop thermal instead of CO2.* Considered given ADR-0012 calls thermal
+  non-load-bearing and it is the least accurate channel. Reversed once weighed against
+  CO2's unique vent-exposure problem and thermal's low mounting cost — see point 4.
+- *Cut load cells now on cost alone (~$400/cell).* Rejected — its effectiveness is
+  unvalidated (point 5), so cutting it on price guesses which conclusion the bench test
+  would have reached anyway; better to measure first, consistent with this project's
+  standing preference for bench data over desk assumptions (`ROADMAP.md`'s guiding
+  thesis; the #9 seal-drag bench test precedent).
+
+**Accepted costs / to verify.**
+- Confirmed suite (radar + thermal) covers 2 of ADR-0012's original 4 independent
+  physics domains; a 3rd (mechanical/load) is provisional. This is a real reduction in
+  common-cause-failure margin from ADR-0012's original 4-channel architecture and needs
+  re-justifying against the PL e target once the load-cell bench test lands and part
+  numbers are final — flagged in `SAFETY.md`'s open items, not resolved here.
+- The apnea/breath-hold gap from dropping CO2 (point 3) is an accepted, documented risk,
+  not an oversight — revisit if real hardware testing shows thermal's presence signal is
+  less robust through a breath-hold than assumed here.
+- Bench test still needed: piston-vibration coupling into the floor load cells, and
+  whether drive-telemetry reference-subtraction recovers a usable BCG signal.
+- Bench test still needed (carried over from ADR-0012): radar vital-sign range/
+  reliability through bedding, small-animal sensitivity, and crown-mount FOV/range
+  sufficient to reach the deep end of the bore when the piston is fully retracted.
+- Window materials (radar radome, thermal IR window) must survive the ADR-0015
+  thermal-chemical sanitize cycle — not yet checked against real candidate materials.
+
+**Follow-ups.** `docs/occupancy_sensor_selection.md` updated to drop CO2 and mark load
+cells provisional. `SAFETY.md` open items updated. Piston-position-as-boundary rule and
+the load-cell vibration bench test are not yet implemented in `godot/occupancy_fusion.gd`
+or as a physical test procedure — both remain open work.
+
+---
+
 ## Component tree (one cell) — reference for ADR-0001
 
 1. Structure/enclosure: sleeping shell (bore), fixed barrel/frame, wall-interface
@@ -1179,9 +1294,10 @@ force-limitability under a jam unverified").
    coupling, mechanical hard stops.
 3. Sealing/hygiene: perimeter wiper seals, floor slope + drain port, splash gaskets.
 4. Sensing/safety/control: position sensors + limit switches, diverse-redundant
-   occupancy sensors (radar vitals + thermal + CO2 + load/BCG, ADR-0012),
-   pressure-sensitive safety edge, external/operator e-stop + passive flush latch
-   (NO interior release, ADR-0009), rated safety controller.
+   occupancy sensors (radar vitals + thermal, crown-mounted, + load/BCG provisional,
+   floor-mounted; CO2 dropped, ADR-0012/ADR-0025), pressure-sensitive safety edge,
+   external/operator e-stop + passive flush latch (NO interior release, ADR-0009),
+   rated safety controller.
 5. Services: power, cable carrier (drag chain), interior lighting, water/drain.
 6. Cleaning subsystem: ADR-0015–0019 (spray-and-squeegee wash, thermal-chemical sanitize, plumbed;
    solids out the mouth to a flush pavement grate, wash media to an internal piston-hidden sump —

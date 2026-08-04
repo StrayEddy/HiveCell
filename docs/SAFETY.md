@@ -229,10 +229,20 @@ from height. Logged here as accepted, not overlooked.
 device cannot enforce it. The risk acceptance should carry a named sign-off.
 
 ## Open items
-- **SF1 real sensing (ADR-0012):** architecture decided (diverse-redundant suite,
-  fail-safe voting, PL e). Still to do: choose sensor part numbers; validate radar
-  vital-sign detection through bedding + small-animal sensitivity on real hardware;
-  build the ISO 13849 PL e verification dossier (category, MTTFd, DC, CCF).
+- **SF1 real sensing (ADR-0012, revised by ADR-0025):** architecture decided
+  (diverse-redundant suite, fail-safe voting, PL e). Placement resolved: all sensors
+  crown-mounted (fixed barrel ceiling) except load cells (floor, by necessity); nothing
+  on the piston. CO2 dropped from the suite (vent-exposure vs. flush-window channels);
+  confirmed suite is now radar + thermal (2 of the original 4 independent physics
+  domains), with load cells provisional pending a bench test. This is a real reduction
+  in common-cause-failure margin from ADR-0012's original architecture — **re-justify
+  against the PL e target once the load-cell bench test lands and part numbers are
+  final.** Candidate parts + prices in
+  [`occupancy_sensor_selection.md`](occupancy_sensor_selection.md). Still to do:
+  bench-validate radar vital-sign detection through bedding + small-animal sensitivity
+  + crown-mount range/FOV to the deep end of the bore; bench-test piston-vibration
+  coupling into the floor load cells (ADR-0025); build the ISO 13849 PL e verification
+  dossier (category, MTTFd, DC, CCF) once parts are confirmed.
 - **SF2 real force limit — injury-data half DONE (ADR-0024):** `SAFE_CONTACT_N` is now
   100 N, sourced from FMVSS 118's child-finger pinch limit and ISO/TS 15066's abdomen
   pain-onset threshold — see [`force_limit_injury_data.md`](force_limit_injury_data.md).
