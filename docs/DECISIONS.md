@@ -260,11 +260,11 @@ holding-without-power there is safe.
   can be inside a flush pod; an availability cost only).
 - **Seal drag vs. passive relief — CHECKED (`scripts/pin_relief.py`, first-order).**
   Back-drive stalls when the tissue reaction equals the seal drag, so the residual pin
-  floors at the resisting force ~1.2 kN — about **10x** a safe sustained contact force
-  (~120 N). **Passive relief alone is INSUFFICIENT.** Therefore a stored-energy return
-  element (~1.5 kN spring / gas strut biasing toward deployed, held off by the flush
-  latch at close) is **required** to unload the occupant — at a cost of ~2.3x the
-  closing design force (2411 -> ~5546 N). Reducing seal drag enough (<=~13 N/m, a >11x
+  floors at the resisting force ~1.2 kN — about **12x** a safe sustained contact force
+  (100 N, ADR-0024). **Passive relief alone is INSUFFICIENT.** Therefore a stored-energy
+  return element (~1.5 kN spring / gas strut biasing toward deployed, held off by the
+  flush latch at close) is **required** to unload the occupant — at a cost of ~2.3x the
+  closing design force (2411 -> ~5546 N). Reducing seal drag enough (<=~10.6 N/m, a >14x
   cut) is not credible for a lip seal. Alternative worth exploring: a seal that sheds
   its drag on power loss (relaxes / retracts) so passive back-drive suffices. Confirm
   with real tissue + seal-drag data before freezing.
@@ -1020,7 +1020,8 @@ against the flush face. That is **H8**, the mouth-lip pinch — precisely the ha
 to answer. Every other state already reversed on either trip; this one state did not.
 
 Bounded, not a crush: `Inv_NoCrush` held throughout (the piston never drives *past* the
-occupant, and contact stays at the 120 N cap, below the ~150 N powered-door limit). The
+occupant, and contact stays at the 120 N cap in effect at the time (revised to 100 N
+under **ADR-0024**, sourced from injury/biomechanical data). The
 defect is in the *latency* of the response, not its existence — but SF2's specification in
 `SAFETY.md` says "immediate stop and reverse", and up to a full dwell is not immediate.
 
@@ -1094,6 +1095,79 @@ safety controller, and the PL assessment remain open (as for all of SF1/SF2).
 claims (`Inv_EStopHalts`, `P_NoAdvanceUnpowered`, `P_NoAutoRestart`, `P_PinRelieves`) now
 verify against code rather than intent. The unpowered return *rate* stays a placeholder —
 it is spring force minus seal drag, and seal drag is issue #9.
+
+---
+
+## ADR-0024 — SF2 force cap sourced from injury/biomechanical data (100 N)
+**Date:** 2026-08-04
+**Status:** Accepted. Implemented in the twin, spec docs, and the pin-relief/seal-drag
+sweep scripts. Hardware force-limitability check remains open (#8, gap G2).
+
+**Context.** The FTA for roadmap #2 flagged basic event **B7**: "the 120 N cap is itself
+above the injury threshold" as the fault-tree branch most worth chasing — a *systematic*
+error, identical in every unit, that no redundancy defends against (`TRACEABILITY.md`
+gap **G2**, issue #8). The 120 N figure in `SAFE_CONTACT_N` (`godot/physics_demo.gd`) and
+the matching `F_SAFE_SUSTAINED` target in `scripts/pin_relief.py` /
+`seal_drag_sweep.py` carried the comment "below the ~150 N powered-door limit" — but no
+standard was ever named, and checking it (below) found the real door standard caps lower,
+not higher, than that: the comparison itself was wrong, not just unsourced.
+
+**Decision.** Set `SAFE_CONTACT_N` = **100 N**, propagated to the matching
+`F_SAFE_SUSTAINED` target in the two pin-relief/seal-drag scripts. Full survey and
+rationale in [`force_limit_injury_data.md`](force_limit_injury_data.md); summary:
+
+- **FMVSS 118** (US federal power-window anti-pinch standard): **100 N**, tested down to
+  a 4 mm rod representing a small child's finger — real regulatory precedent for the
+  identical hazard class (a powered mechanism closing on a body part), and the only
+  source surveyed validated against a sub-adult limb.
+- **ISO/TS 15066** Annex A (biomechanical pain-onset limits by body region, University
+  of Mainz study): **abdomen 110 N quasi-static** is the applicable worst-case region
+  for H3/H8 (piston pinning a limb/torso, or the mouth-lip pinch) — hands/fingers,
+  chest, neck, and pelvis are all higher (140–180 N) and not the binding constraint.
+  100 N clears this with margin.
+- The old "~150 N powered-door limit" comparator (ANSI/BHMA A156.19) actually caps
+  normal-operation stop force at **67 N** — confirming the old 120 N cap was being
+  checked against a number that was itself wrong, in the permissive direction.
+
+**Why 100 N and not 110 N (the ISO abdomen figure).** 100 N clears *both* relevant
+thresholds at once (100 ≤ 100 and 100 ≤ 110) rather than sitting between them, and it is
+the one source validated against a body part smaller than an adult's — consistent with
+`SAFETY.md`'s stated user model (vulnerable: intoxicated, unconscious, disabled, asleep).
+It is also a real regulatory number, not a synthesized one — the property a reviewer
+asking "where did this come from" needs.
+
+**Consequences, checked, not re-derived.** `SAFE_CONTACT_N` feeds `physics_demo.gd`'s
+SR-007 discrimination test (unaffected: trash-pile load ~63 N stays well under, the
+non-yielding-body load ~138 N stays well over — margin preserved both directions).
+`F_SAFE_SUSTAINED` feeds `pin_relief.py`'s passive-relief verdict (ADR-0009): re-run,
+the qualitative conclusion is unchanged (passive relief still fails — residual pin is
+1206 N either way, now ~12× the target instead of ~10×) because the return-element
+sizing (`f_return`, `f_close_design` — 1567 N / 5546 N) depends on seal drag and design
+margins, not on this target. This is **not** the actuator re-run tracked as issue #11 —
+that item still owns re-deriving the return-element/actuator numbers once seal drag
+(#9) is measured; this ADR only corrects the comparison target those numbers are
+checked against.
+
+**Rejected.**
+- *Keep 120 N, drop the door comparison.* Would leave the cap unsourced again — the
+  original sin gap G2 flagged. Rejected.
+- *Use the ISO/TS 15066 abdomen figure (110 N) directly.* Real and sourced, but sits
+  above FMVSS 118's child-finger figure; 100 N dominates both. Rejected in favour of the
+  lower, doubly-anchored value.
+
+**Accepted costs.** None functional — 100 N is a stricter cap than 120 N, so SF2 trips
+earlier, not later; the only cost is a marginally higher nuisance-trip rate against
+compliant/soft obstructions, judged acceptable for the safety margin bought.
+
+**Still open.** The hardware half of issue #8: whether the real actuator + controller,
+under real seal drag (#9) and real jam dynamics, can actually be held to 100 N — sim
+force is a modelled quantity, not a measurement of force-limitability. `TRACEABILITY.md`
+gap G2 renamed accordingly (no longer "cap unvalidated," now "drive's real
+force-limitability under a jam unverified").
+
+**Follow-ups.** Done: `godot/physics_demo.gd`, `scripts/pin_relief.py`,
+`scripts/seal_drag_sweep.py`, `SAFETY.md`, `TRACEABILITY.md` (SR-007, B7, G2),
+`spec/README.md`. `docs/force_limit_injury_data.md` holds the full source survey.
 
 ---
 

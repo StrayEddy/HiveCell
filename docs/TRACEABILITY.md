@@ -63,7 +63,7 @@ IDs are stable; do not renumber.
 | ID | Requirement | From |
 |----|-------------|------|
 | **SR-006** | Inward motion shall stop and reverse when contact force exceeds the safe cap, by a path **functionally independent** of SR-001…005. | H3, H5, H8, F1→F2 |
-| **SR-007** | Contact force shall be capped below the injury threshold (**≤120 N**, cf. the ~150 N powered-door limit). | H3 |
+| **SR-007** | Contact force shall be capped below the injury threshold (**≤100 N**, sourced from FMVSS 118 + ISO/TS 15066 abdomen pain-onset, ADR-0024). | H3 |
 | **SR-008** | The contact reaction shall act in **every** state the piston can occupy, including closed-and-flush. | H8, ADR-0022 |
 | **SR-009** | A sweep shall not start while a contact trip is already asserted. | H3, H8 |
 
@@ -122,8 +122,9 @@ Evidence identifiers are re-runnable — see §5 for the commands.
 | SR-006 | `contact_over_limit` trip, separate from `life_present()` | **V-MC** | `Inv_NoSweepWhileContact`, `P_NoAdvanceUnderContact` | holds — **VERIFIED (sim)** |
 | SR-006 | independence *proven*: piston never passes a real occupant with **all four** SF1 channels blind | **V-MC** | **`Inv_NoCrush`** (over a ground-truth occupant) | holds — **VERIFIED (sim)**; the FMEA F1→F2 chain |
 | SR-006 | " | **V-ST** | S5 (SF1 blind, SF2 catches) | pass |
-| SR-007 | `SAFE_CONTACT_N` = 120 N | **V-ST** | `physics_demo.gd`: trash pile peaks ~63 N (yields, bounded); non-yielding body ~138 N → trips | pass — discriminates yield vs magnitude |
-| SR-007 | the cap being *safe for tissue* | **V-HW** | — | **OPEN** — needs injury data (#8) |
+| SR-007 | `SAFE_CONTACT_N` = 100 N | **V-ST** | `physics_demo.gd`: trash pile peaks ~63 N (yields, bounded); non-yielding body ~138 N → trips | pass — discriminates yield vs magnitude |
+| SR-007 | the cap being *sourced from real data* | **V-AN** | `force_limit_injury_data.md`, ADR-0024: FMVSS 118 (100 N) + ISO/TS 15066 abdomen quasi-static (110 N) | **ANALYSED** — desk half of #8 done |
+| SR-007 | the drive's *actual* force-limitability under a real jam | **V-HW** | — | **OPEN** — hardware, remainder of #8 |
 | SR-008 | `CLEARED_HOLD` exits on either trip (ADR-0022) | **V-MC** | `Inv_NoTripHeldAtFlush` | holds — **VERIFIED (sim)** |
 | SR-008 | " | **V-ST** | S6, + `hold-ignores-trips` mutant | pass; mutant caught |
 | SR-009 | `LIFE_CHECK` holds while contact asserted | **V-MC** | `Inv_NoSweepWhileContact` | holds — **VERIFIED (sim)** |
@@ -143,7 +144,7 @@ Evidence identifiers are re-runnable — see §5 for the commands.
 |----|----------------|---|----------|--------|
 | SR-013 | `UNPOWERED` state; return element relieves in the occupant zone | **V-MC** | `P_PinRelieves`, `P_NoAdvanceUnpowered` (Blackout run = FMEA F3) | holds — **VERIFIED (sim)** |
 | SR-013 | " | **V-ST** | S7 blackout mid-sweep | pass — relieves to deployed |
-| SR-013 | *passive* back-drive alone | **V-AN** | `pin_relief.py`: stalls at 1206 N resisting → residual pin **1206 N ≈ 10× the 120 N target** | **FAILS** — passive relief insufficient |
+| SR-013 | *passive* back-drive alone | **V-AN** | `pin_relief.py`: stalls at 1206 N resisting → residual pin **1206 N ≈ 12× the 100 N target** | **FAILS** — passive relief insufficient |
 | SR-013 | ⇒ stored-energy return element | **V-AN** | `pin_relief.py`: **1567 N** required (≥ resisting ×1.3) | **ANALYSED** — drives closing force to 5546 N design (§4.3) |
 | SR-014 | passive flush latch | **V-MC** | `FailOpen` holds position at `Flush` only | holds — **VERIFIED (sim)** |
 | SR-014 | " | **V-ST** | S8 blackout at flush | pass — latch holds |
@@ -240,20 +241,23 @@ TE-2  Contact force on an occupant exceeds the injury threshold
         └── OR ─────────────────────────────────────────────
             ├── B5  safety edge fails to sense contact       (blind/damaged/mis-routed)
             ├── B6  drive force monitoring fails or is mis-calibrated
-            ├── B7  the 120 N cap is itself above the injury threshold      ← ***
+            ├── B7  the cap is itself above the injury threshold      ← *** [ADR-0024]
             └── B8  reaction acts too late in some state                 [ADR-0022]
 ```
 
 **Minimal cut sets:** `{B1,B2,B3,B4,B5}`, `{B1..B4,B6}`, `{B1..B4,B7}`, `{B1..B4,B8}` —
 all order 5.
 
-**B7 is the branch that deserves attention.** It is not a random failure — it is a
-*wrong number*. If 120 N is above the real injury threshold for the vulnerable users
-this machine assumes (intoxicated, unconscious, elderly), then SF2 bounds the force to a
-value that still injures, and no amount of redundancy elsewhere helps. It is a
-**systematic** error, present in every unit, correlated across the whole fleet, and it
-would not be caught by any test the project currently runs. Issue #8 is the only thing
-that closes it.
+**B7 was the branch that deserved attention, and it found a real error.** It was not a
+random failure — it was a *wrong number*: the 120 N cap was compared against an uncited
+"~150 N powered-door limit" that turned out not to match the actual door standard (67 N).
+**ADR-0024** replaced it with `SAFE_CONTACT_N` = 100 N, sourced from FMVSS 118 (100 N,
+the one source here validated against a child-sized limb) and cross-checked against ISO/TS
+15066's abdomen quasi-static pain-onset limit (110 N) — see
+[`force_limit_injury_data.md`](force_limit_injury_data.md). That closes the *desk* half of
+B7: the cap is no longer an unsourced guess. It does **not** close the branch entirely —
+whether the real drive can actually *hold* that cap under a hard jam (with real seal drag,
+real controller latency) is unmeasured hardware work, the remainder of issue #8.
 
 B8 was a live defect until ADR-0022 — `CLEARED_HOLD` ignored the trip for up to 2 s.
 Model checking found it. It is now closed by `Inv_NoTripHeldAtFlush` and guarded by a
@@ -286,10 +290,10 @@ TE-3  Occupant is held under sustained force with no relief
 Deepest tree in the analysis — this is the F3 design-out working. Two notes:
 
 **B10 is load-bearing and unbuilt.** `pin_relief.py` shows passive back-drive **does not
-work**: it stalls at 1206 N of seal drag, flooring the residual pin at ~10× the 120 N
-target. So the entire unpowered branch rests on a **1567 N stored-energy return element
-that does not exist yet** and has never been sized against a measured seal drag. E6 is
-currently a single-point dependency wearing the costume of a redundant branch.
+work**: it stalls at 1206 N of seal drag, flooring the residual pin at ~12× the 100 N
+target (ADR-0024). So the entire unpowered branch rests on a **1567 N stored-energy return
+element that does not exist yet** and has never been sized against a measured seal drag.
+E6 is currently a single-point dependency wearing the costume of a redundant branch.
 
 **B10 and B11 are not independent of TE-2's B5/B6 in the way the tree implies.** A
 correlated cause — the seal drag being far higher than modelled — simultaneously raises
@@ -332,7 +336,7 @@ Everything §3 does **not** discharge. Ordered by how much of the safety case re
 | # | Gap | Blocks | Consequence if wrong | Issue |
 |---|-----|--------|----------------------|-------|
 | **G1** | **Seal drag unmeasured** (16–700 N/m, ~44×) | SR-011, SR-013 | correlated: defeats the return element **and** raises the force SF2 must bound (§4.3) — weakens TE-2 and TE-3 together | [#9](https://github.com/StrayEddy/HiveCell/issues/9) |
-| **G2** | **120 N cap not validated against injury data** | SR-007 | systematic, fleet-wide: SF2 bounds force to a value that still injures (B7) | [#8](https://github.com/StrayEddy/HiveCell/issues/8) |
+| **G2** | **Drive's real force-limitability under a jam unverified** (cap itself now sourced — ADR-0024) | SR-007 | if the real drive/controller can't actually hold the (now-sourced) cap, SF2 bounds force to a value it never enforces (B7, narrowed) | [#8](https://github.com/StrayEddy/HiveCell/issues/8) |
 | **G3** | **Return element unbuilt and unsized against real drag** | SR-013 | the whole unpowered branch of TE-3 is a single point (B10) | [#11](https://github.com/StrayEddy/HiveCell/issues/11) |
 | **G4** | **Seal compliance unproven** — deflect vs shear | SR-010 | H2 has *geometry* but no *material* defence | [#9](https://github.com/StrayEddy/HiveCell/issues/9) |
 | **G5** | **SF1 channels unselected; common-cause untested** | SR-003 | the order-4 AND gate of §4.1 is the assurance argument; CCF is what collapses it | [#7](https://github.com/StrayEddy/HiveCell/issues/7) |

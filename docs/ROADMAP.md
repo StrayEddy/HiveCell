@@ -23,14 +23,21 @@ promoting** (a recommendation, not a re-prioritisation — the call is yours):
   *and* raises the force SF2 must bound, so it weakens TE-2 and TE-3 **together**. The
   order-6 cut set protecting against a sustained pin is optimistic under exactly this
   condition. It is already the roadmap's named critical path, below.
-- **[#8](https://github.com/StrayEddy/HiveCell/issues/8) SF2 force limit** — gap **G2**,
-  basic event **B7**. If the 120 N cap sits above the real injury threshold, SF2 bounds
-  force to a value that still injures: a *systematic* error, identical in every unit,
-  that no redundancy defends against and no current test would catch. The injury-data
-  half is desk work.
+- ~~**[#8](https://github.com/StrayEddy/HiveCell/issues/8) SF2 force limit**~~ — the
+  injury-data half is done, see below. What remains is hardware: the drive's real
+  force-limitability under a jam.
 
 Everything that could be verified from a desk about the *logic* now has been. What is
-left in the safety case is physics, and it is the physics that is unmeasured.
+left in the safety case is physics, and it is the physics that is unmeasured — mostly.
+
+**Done (desk half):** [#8](https://github.com/StrayEddy/HiveCell/issues/8) SF2 real
+force limit — [`force_limit_injury_data.md`](force_limit_injury_data.md) +
+**ADR-0024**. `SAFE_CONTACT_N` moved 120 N → 100 N, sourced from FMVSS 118 (child-finger
+pinch, 100 N) and ISO/TS 15066's abdomen pain-onset limit (110 N) — replacing an uncited
+"~150 N powered-door limit" comparison that turned out to be wrong (the real door
+standard caps at 67 N). Closes the FTA's **B7** branch on the desk side; the hardware
+half — can the real drive actually *hold* the cap under a jam — stays open, folded into
+gap **G2** below.
 
 **Done:** [#2](https://github.com/StrayEddy/HiveCell/issues/2) safety requirements +
 traceability matrix + FTA — [`TRACEABILITY.md`](TRACEABILITY.md). 21 numbered
@@ -81,7 +88,7 @@ gates several of these and sits on the critical path.
 |---|------|------|------|
 | [#9](https://github.com/StrayEddy/HiveCell/issues/9) | Measure seal drag on a real sample (ADR-0011) — **critical path** | cad | ~$200 bench sample; retires the master variable and feeds #11 |
 | [#7](https://github.com/StrayEddy/HiveCell/issues/7) | SF1 real-sensing validation + ISO 13849 PL e dossier (ADR-0012) | sensing | sensor hardware; radar-through-bedding + small-animal tests |
-| [#8](https://github.com/StrayEddy/HiveCell/issues/8) | SF2 real force limit from injury data + drive force-limitability | safety | injury data (desk) + real drive characterization |
+| [#8](https://github.com/StrayEddy/HiveCell/issues/8) | SF2 drive force-limitability under a real jam (injury-data half done, ADR-0024) | safety | real drive characterization |
 | [#11](https://github.com/StrayEddy/HiveCell/issues/11) | SF4 return element + back-drive verification + actuator re-run (ADR-0009) | cad | desk re-run now; back-drive check needs hardware; coupled to #9 |
 | [#10](https://github.com/StrayEddy/HiveCell/issues/10) | H4 siting sign-off vs local code + commissioning check (ADR-0013) | safety | real install context, local code, named sign-off |
 

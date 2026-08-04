@@ -141,7 +141,7 @@ safety trip, testing only the dwell timer, so with the piston flush a safety-edg
 went unacted-on for up to `hold_seconds` (2.0 s). Reachable by someone reaching into
 the mouth (**H5**) as the sweep completes, held against the flush face — **H8**, the
 mouth-lip pinch, exactly where SF2 should act. Bounded, not a crush (`Inv_NoCrush` held
-throughout; contact stays at the 120 N cap), but a latency SF2's spec does not allow.
+throughout; contact stays at the 100 N cap), but a latency SF2's spec does not allow.
 `CLEARED_HOLD` now exits on either trip; guarded by `Inv_NoTripHeldAtFlush`, scenario
 S6, and a mutant that re-injects the pre-fix code. **This is the concrete argument for
 the method** — the defect survived review and scenario testing, and exhaustive state
@@ -160,7 +160,8 @@ performance-level (PL) claim.
   SF1 and SF2 are two independent trips. SF1 = fail-safe OR across (simulated) diverse life-detection
   channels (radar vitals, thermal, CO₂, load-cell BCG); any channel, or any sensor
   fault, => "occupied" => no motion. SF2 = contact force over a safe cap
-  (`SAFE_CONTACT_N` = 120 N, below the ~150 N powered-door limit). Either trip stops
+  (`SAFE_CONTACT_N` = 100 N — sourced from injury/biomechanical data, see
+  [`force_limit_injury_data.md`](force_limit_injury_data.md) and ADR-0024). Either trip stops
   and reverses a sweep, reversing from the current position; a sweep never starts
   while either trip is active.
 - `godot/tests/test_interlock.gd` — headless self-test enforcing the invariant "the
@@ -232,10 +233,12 @@ device cannot enforce it. The risk acceptance should carry a named sign-off.
   fail-safe voting, PL e). Still to do: choose sensor part numbers; validate radar
   vital-sign detection through bedding + small-animal sensitivity on real hardware;
   build the ISO 13849 PL e verification dossier (category, MTTFd, DC, CCF).
-- **SF2 real force limit:** sim shows a force-limited drive with a cap below the door
-  limit is a viable backstop (discriminates yield vs magnitude). Real cap must come
-  from injury data + the drive's *actual* force-limitability; SF1 remains primary
-  either way (force alone cannot be trusted if a heavy jam can exceed the cap).
+- **SF2 real force limit — injury-data half DONE (ADR-0024):** `SAFE_CONTACT_N` is now
+  100 N, sourced from FMVSS 118's child-finger pinch limit and ISO/TS 15066's abdomen
+  pain-onset threshold — see [`force_limit_injury_data.md`](force_limit_injury_data.md).
+  Still open: the drive's *actual* force-limitability (can the real actuator hold the
+  cap under a hard jam, given real seal drag?) — hardware, coupled to #9. SF1 remains
+  primary either way (force alone cannot be trusted if a heavy jam can exceed the cap).
 - **SF3 lip material + compliance + LOW FRICTION (ADR-0011):** select a low-friction
   wiper (PTFE/lubricated/brush) and PROVE a finger/hair deflects rather than shears.
   Seal drag is the master lever (couples SF3/SF4/actuator; `seal_drag.py` range

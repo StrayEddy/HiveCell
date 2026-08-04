@@ -181,7 +181,8 @@ piston is completing to, and is held against the flush face for the rest of the 
 That is **H8**, the mouth-lip pinch, precisely where SF2 is supposed to act.
 
 Bounded, not a crush: `Inv_NoCrush` held throughout — the piston never drove *past*
-them, and contact stays at the SF2 cap (120 N, below the ~150 N powered-door limit).
+them, and contact stays at the SF2 cap (100 N, sourced from injury/biomechanical data
+— see `docs/force_limit_injury_data.md`, ADR-0024).
 The defect was in the *latency* of the response, not its existence. But SF2's
 specified response is "immediate stop and reverse", and up to a full dwell is not
 immediate.

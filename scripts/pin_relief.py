@@ -37,8 +37,8 @@ LIGHT_WALL_MM = 6.0       # equivalent shell thickness for a lightweighted pisto
 SAFETY = 2.0              # design factor on actuator force (matches actuator_sizing)
 ETA = 0.5                 # drivetrain efficiency (for the closing-force burden note)
 
-# safety target + biomechanics (FLAGGED: first-order, not certified)
-F_SAFE_SUSTAINED = 120.0  # N  target residual pin, = SF2 cap. NOTE: a safe
+# safety target + biomechanics (sourced: docs/force_limit_injury_data.md, ADR-0024)
+F_SAFE_SUSTAINED = 100.0  # N  target residual pin, = SF2 cap. NOTE: a safe
                           #    INDEFINITE clamp is likely lower -> conservative here.
 RETURN_MARGIN = 1.3       # design margin on a return element
 TISSUE_STIFFNESS = 30.0   # N/mm  representative soft-tissue stiffness (context only:

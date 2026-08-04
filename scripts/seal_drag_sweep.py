@@ -29,7 +29,8 @@ SAFETY = 2.0              # design safety factor on force
 ETA = 0.5                 # drivetrain efficiency
 LIGHT_WALL_MM = 6.0       # equivalent shell thickness for a lightweighted piston
 RETURN_MARGIN = 1.3       # SF4 return element vs. resisting force (ADR-0009)
-F_SAFE_SUSTAINED = 120.0  # N   safe residual pin target (= SF2 cap; likely optimistic)
+F_SAFE_SUSTAINED = 100.0  # N   safe residual pin target (= SF2 cap; likely optimistic;
+                          #     sourced: docs/force_limit_injury_data.md, ADR-0024)
 
 # --- drag values to sweep (N/m per lip): the credible range + design landmarks
 SWEEP = [10, 16, 25, 40, 60, 100, 150, 200, 300, 450, 700]

@@ -14,8 +14,11 @@ extends Node3D
 ## shell mesh AABB, so this stays in sync if the CAD changes and is re-exported.
 
 const MODELS := "res://models/"
-const SAFE_CONTACT_N := 120.0   ## SF2 hard force cap: below the ~150 N powered-door
-                                ## limit, with margin for vulnerable occupants. Tunable.
+const SAFE_CONTACT_N := 100.0   ## SF2 hard force cap. Sourced (ADR-0024,
+                                ## docs/force_limit_injury_data.md): FMVSS 118's 100 N
+                                ## child-finger pinch limit, also below ISO/TS 15066's
+                                ## 110 N abdomen quasi-static pain-onset limit — the two
+                                ## most relevant real thresholds for H3/H8. Tunable.
 const PERSON_HALF_X := 0.72     ## half-length of the lying person along X (capsule)
 
 var il := SafetyInterlock.new()
