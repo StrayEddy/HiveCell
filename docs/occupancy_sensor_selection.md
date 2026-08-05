@@ -94,20 +94,25 @@ for real body weight; the BCG micro-motion signal on top of that can run off the
 cells through a 24-bit HX711 front end (~$5–10 per channel) rather than needing separate
 hardware — no need to buy the 50 kg hobby load cells too.
 
-## 5. Channel E (optional) — mouth-plane presence during motion — mouth-frame-mounted, not crown
+## 5. Channel E — mouth-plane presence during motion — mouth-frame-mounted, not crown — **required, not optional**
 
-ADR-0012 flags this as optional and names it for reach-in detection during a sweep, not
-steady-state occupancy — which changes the sourcing question: this one plausibly needs
-to *be* a safety function on its own (SF-adjacent), not just a bench-validation input.
+**Correction:** earlier drafts of this doc (and this survey's own framing further down)
+called E optional, following ADR-0012's original text. That's stale — **ADR-0016
+already promoted channel E to required**, months before this survey (`DECISIONS.md`
+line 701: *"the mouth-plane presence sensor (ADR-0012 optional channel E) is promoted
+to required"*, driven by the cleaning-cycle reach-in hazard, not the H4 siting
+follow-up this doc previously pointed to). That changes the sourcing conclusion below:
+this needs to *be* a certified safety function from the start, not a bench-validation
+placeholder with certification deferred.
 
 | Part | Vendor | Price (USD) | Grade | Notes |
 |---|---|---:|---|---|
-| **VL53L5CX breakout** (8×8-zone ToF) | SparkFun/Pololu | **~$32.50** | Prototype | Fine for bench characterization of the reach-in geometry/timing, but it is a consumer ToF chip — not safety-rated, no certified stop path. |
-| **Omron F3SG-4RA / F3SJ safety light curtain**, PL e / Cat 4 / SIL3 | Omron/Newark | **from ~€529 (~$570+)**, scales with protected height | Safety-certified | If E gets promoted from optional to required (DECISIONS.md flags this for the H4 sitting-height mouth siting), this is the class of part that actually satisfies a PL e dossier — a certified light curtain, not a hobby ToF board doing the same job in software. |
+| **VL53L5CX breakout** (8×8-zone ToF) | SparkFun/Pololu | **~$32.50** | Prototype | Useful now for bench characterization of the reach-in geometry/timing, but it is a consumer ToF chip — not safety-rated, no certified stop path. Not a substitute for the certified part below; bench-only. |
+| **Omron F3SG-4RA / F3SJ safety light curtain**, PL e / Cat 4 / SIL3 | Omron/Newark | **from ~€529 (~$570+)**, scales with protected height | Safety-certified | This is the part that actually belongs in the BOM, since E is required, not optional — a certified light curtain, not a hobby ToF board doing the same job in software. |
 
-**Recommendation:** VL53L5CX now for bench geometry/timing studies; budget for a
-certified light curtain (~$600+) only if/when E is promoted to required per the H4
-follow-up in DECISIONS.md.
+**Recommendation:** VL53L5CX now for bench geometry/timing studies only; the certified
+light curtain (~$570+) is the real line item and belongs in the BOM now, not deferred —
+E's required status was already decided before this survey was written.
 
 ## 6. SF2-adjacent — force/current sensing on the real drive (issue #8 hardware half)
 
@@ -125,19 +130,21 @@ separate mechanical force sensor:
 
 | Channel | Part | Price |
 |---|---|---:|
-| A — radar | MR60BHA2 | $26.90 |
-| B — thermal | AMG8833 | ~$38 |
+| A — radar | MR60BHA2 (bench) | $26.90 |
+| B — thermal | AMG8833 (bench) | ~$38 |
 | ~~C — CO2~~ | *dropped, ADR-0025* | — |
 | D — load/BCG (provisional) | 4× ATO 100 kg single-point cell + HX711 front end | ~$396 + ~$10 |
-| E — reach-in (optional) | VL53L5CX breakout | $32.50 |
+| E — reach-in (**required**, ADR-0016) | VL53L5CX (bench-only) + Omron F3SG-4RA (the real part) | $32.50 + $570+ |
 | SF2 current sense | ACS712 breakout | ~$5 |
-| **Total (D pending bench test)** | | **≈ $510/cell** (≈$440 without optional E) |
-| **Total if D fails its bench test** | | **≈ $105/cell** (radar + thermal + SF2 only, ≈$70 without E) |
+| **Total, bench-validation channels only (A/B/D/SF2)** | | **≈ $476/cell** |
+| **+ E's certified light curtain (required, not deferrable)** | | **≈ $1,050+/cell** |
+| **If D fails its bench test** | | **≈ $650+/cell** (A + B + E + SF2) |
 
-This is a single bench-validation set per channel, not a BOM for a certified unit —
-final parts (especially D and E) will very likely change once the PL e dossier and real
+This is a single bench-validation set for A/B/D, not a BOM for a certified unit for
+those three — final parts there will likely change once the PL e dossier and real
 mounting/EMC constraints (radar-in-metal-bore, per ADR-0012's accepted costs) are
-worked out.
+worked out. E is different: it's already a required safety function, so its certified
+part cost is real and not a placeholder.
 
 ## 8. What this doesn't answer
 
@@ -149,8 +156,9 @@ worked out.
 - Radar-through-metal-bore EMC and mounting/field-of-view (no dead zones) are
   unverified for all radar candidates above — bench characterization, not a catalog
   lookup, will decide this.
-- Channel E's fate (optional vs. required) is upstream of its part choice — see
-  ADR-0013 / the H4 follow-up in `DECISIONS.md`.
+- Channel E is required (ADR-0016), not optional — see the correction in §5. It also
+  interacts with H4/ADR-0013's sitting-height siting, but that's a second reason to
+  need it, not the original one.
 
 ## Sources
 
