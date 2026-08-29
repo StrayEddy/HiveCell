@@ -1,3 +1,12 @@
+<!-- BOARD
+url: https://claude.ai/code/artifact/daa18251-ffd5-4b55-a1ee-751ffe7058e9
+headline: On hold since 2026-08-05; the seal-drag bench test is the critical-path blocker gating #11, fault-injection sim is next desk work.
+now:
+- P0 #9 seal-drag bench test (~$200 sample, `docs/seal_drag_bench_test.md`, ADR-0011) — retires the master variable, gates #11
+- P1 #3 randomized fault-injection on interlock timing (sim)
+review:
+-->
+
 # HiveCell — TODO
 
 **Status: on hold** since 2026-08-05. Narrative + priorities live in `docs/ROADMAP.md`; live discussion in GitHub Issues. This file is the actionable checklist the desktop board reads — keep the two in sync.
